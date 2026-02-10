@@ -1278,6 +1278,8 @@ const SuperAdminPanel = () => {
                 <div>
                   <h4 className="font-bold text-gray-200">{s.name}</h4>
                   <p className="text-xs text-gray-500">{s.whatsapp}</p>
+                  <p className="text-xs text-gray-500">{s.owner_name}</p>
+                  <p className="text-xs text-gray-500">{s.created_at}</p>
                 </div>
                 <div className="flex gap-2">
                   <button
