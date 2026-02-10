@@ -17,13 +17,14 @@ import {
   User,
   MessageCircle,
   X,
-  //Copy,
+  Copy,
   Store,
   ChevronLeft,
   Loader2,
   // Lock,
   Eye,
   EyeOff,
+  //notify,
   Edit,
   Ban,
   CheckCircle,
@@ -879,7 +880,7 @@ const VendorDashboard = () => {
     updateStoreSettings,
     logout,
   } = useContext(AppContext);
-  //const { notify } = useToast();
+  const { notify } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState("prod");
   const [modal, setModal] = useState(false);
@@ -958,6 +959,42 @@ const VendorDashboard = () => {
       <div className="p-4">
         {tab === "prod" ? (
           <div className="space-y-4">
+            {/* --- NUEVA TARJETA DE ENLACE COMPARTIBLE --- */}
+            {myStore && (
+              <div className="mb-8 p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border border-blue-500/30 shadow-2xl flex flex-col items-center text-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600/10 rounded-xl">
+                    <Store className="text-blue-500" size={30} />
+                  </div>
+                  <h1 className="text-white font-bold text-sm" size={18}>
+                    Tu tienda está lista
+                  </h1>
+                  <br></br>
+                  <div>
+                    <p className="text-gray-400 text-[11px] uppercase tracking-wider font-medium">
+                      Comparte este enlace con tus clientes
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 bg-black/40 p-2 pl-4 rounded-xl border border-gray-700 w-full max-w-md">
+                  <span className="text-sm font-mono text-blue-400 truncate flex-1">
+                    {`${window.location.origin}/${myStore.slug || myStore.name.toLowerCase().trim().replace(/\s+/g, "-")}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}/${myStore.slug || myStore.name.toLowerCase().trim().replace(/\s+/g, "-")}`;
+                      navigator.clipboard.writeText(url);
+                      notify("¡Enlace copiado!");
+                    }}
+                    className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-lg transition-all active:scale-90"
+                  >
+                    <Copy size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* --- FIN DE TARJETA --- */}
             {myProducts.map((p) => (
               <div
                 key={p.id}
@@ -1158,6 +1195,7 @@ const VendorDashboard = () => {
 };
 
 const SuperAdminPanel = () => {
+  const { notify } = useToast();
   const {
     adminData,
     logout,
@@ -1271,46 +1309,79 @@ const SuperAdminPanel = () => {
 
         {tab === "stores" && (
           <div className="space-y-3">
-            {stores.map((s) => (
-              <Card
-                key={s.id}
-                className={`p-4 flex justify-between items-center transition-all ${s.is_suspended ? "border-l-4 border-red-500 bg-red-900/5" : ""}`}
-              >
-                <div>
-                  <h4 className="font-bold text-gray-200">{s.name}</h4>
-                  <p className="text-xs text-gray-500">{s.whatsapp}</p>
-                  <p className="text-xs text-gray-500">{s.owner_name}</p>
-                  <p className="text-xs text-gray-500">{s.created_at}</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelStore(s);
-                      setEditWhatsapp(s.whatsapp);
-                    }}
-                    className="p-2 bg-blue-900/30 text-blue-400 rounded-lg"
-                  >
-                    <Info size={18} />
-                  </button>
-                  <button
-                    onClick={() => toggleStore(s.id, s.is_suspended)}
-                    className="p-2 bg-gray-700 rounded text-gray-400"
-                  >
-                    {s.is_suspended ? (
-                      <CheckCircle size={18} />
-                    ) : (
-                      <Ban size={18} />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => deleteStore(s.id)}
-                    className="p-2 bg-red-900/30 text-red-400 rounded"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </Card>
-            ))}
+            {stores.map((s) => {
+              // Generamos el slug basado en el nombre (o usamos s.slug si tu backend ya lo trae)
+              const storeSlug =
+                s.slug || s.name.toLowerCase().trim().replace(/\s+/g, "-");
+              // Construimos la URL dinámica usando el origen actual (localhost o dominio real)
+              const storeUrl = `${window.location.origin}/${storeSlug}`;
+
+              return (
+                <Card
+                  key={s.id}
+                  className={`p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${
+                    s.is_suspended
+                      ? "border-l-4 border-red-500 bg-red-900/5"
+                      : "border-l-4 border-blue-500"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0 w-full">
+                    <h4 className="font-bold text-gray-200 text-lg">
+                      {s.name}
+                    </h4>
+                    <p className="text-xs text-gray-500 mb-2">
+                      {s.owner_name} • {s.whatsapp} •{" "}
+                      {s.created_at.split("T")[0]}
+                    </p>
+
+                    {/* Contenedor de la URL y botón de copiar */}
+                    <div className="flex items-center gap-2 bg-gray-900/80 p-2 rounded-xl border border-gray-700 w-full sm:w-fit group">
+                      <span className="text-[11px] text-blue-400 font-mono truncate max-w-[200px] sm:max-w-xs">
+                        {storeUrl}
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(storeUrl);
+                          notify("¡Enlace copiado!");
+                        }}
+                        className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-all active:scale-90"
+                        title="Copiar ruta de la tienda"
+                      >
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      onClick={() => {
+                        setSelStore(s);
+                        setEditWhatsapp(s.whatsapp);
+                      }}
+                      className="p-2.5 bg-blue-900/20 text-blue-400 rounded-xl hover:bg-blue-900/40 transition-colors"
+                    >
+                      <Info size={18} />
+                    </button>
+                    <button
+                      onClick={() => toggleStore(s.id, s.is_suspended)}
+                      className="p-2.5 bg-gray-800 rounded-xl text-gray-400 hover:text-white transition-colors border border-gray-700"
+                    >
+                      {s.is_suspended ? (
+                        <CheckCircle size={18} />
+                      ) : (
+                        <Ban size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => deleteStore(s.id)}
+                      className="p-2.5 bg-red-900/20 text-red-400 rounded-xl hover:bg-red-900/40 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
 
