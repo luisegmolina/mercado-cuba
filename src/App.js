@@ -1,4 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
+import "./index.css";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
   BrowserRouter,
@@ -1421,7 +1422,7 @@ export default function App() {
       <ToastProvider>
         <AppProvider>
           {/* El TailwindInjector se asegura de que los estilos existan */}
-          <TailwindInjector />
+
           <AppRoutes />
         </AppProvider>
       </ToastProvider>
