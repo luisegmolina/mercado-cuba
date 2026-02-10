@@ -17,11 +17,11 @@ import {
   User,
   MessageCircle,
   X,
-  Copy,
+  //Copy,
   Store,
   ChevronLeft,
   Loader2,
-  Lock,
+  // Lock,
   Eye,
   EyeOff,
   Edit,
@@ -33,8 +33,8 @@ import {
   Grid,
   Settings as SettingsIcon,
   AlertCircle,
-  Camera,
-  Share2,
+  //Camera,
+  //Share2,
 } from "lucide-react";
 
 /** * --- CONFIGURACIÓN DE RED Y CONSTANTES ---
@@ -69,7 +69,7 @@ const parseImages = (imgStr) => {
 
 // Inyecta Tailwind CSS dinámicamente.
 // Nota: El error "Unexpected token <" ocurre si este script falla al cargar.
-const TailwindInjector = () => {
+/*const TailwindInjector = () => {
   useEffect(() => {
     if (!document.getElementById("tailwind-script")) {
       const script = document.createElement("script");
@@ -85,7 +85,7 @@ const TailwindInjector = () => {
   }, []);
   return null;
 };
-
+*/
 /** * --- TOAST CONTEXT (NOTIFICACIONES) --- */
 const ToastContext = createContext();
 
@@ -875,11 +875,11 @@ const VendorDashboard = () => {
     myStore,
     myProducts,
     saveProduct,
-    deleteProduct,
+    //deleteProduct,
     updateStoreSettings,
     logout,
   } = useContext(AppContext);
-  const { notify } = useToast();
+  //const { notify } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState("prod");
   const [modal, setModal] = useState(false);
