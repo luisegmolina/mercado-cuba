@@ -35,10 +35,14 @@ import {
 } from "lucide-react";
 
 // --- CONFIGURACIÓN DE RED ---
-// Usa "localhost" para pruebas en tu PC.
-// Solo cambia a la IP (ej: 192.168.x.x) si vas a probar desde el celular.
-const MY_IP = "localhost";
-const API_URL = `http://${MY_IP}:3001/api`;
+// const MY_IP = "localhost"; // Comenta o borra esta línea
+// const API_URL = `http://${MY_IP}:3001/api`; // Comenta o borra esta también
+
+// PEGA AQUÍ LA URL QUE COPIASTE DE RENDER (Asegúrate de añadirle /api al final)
+const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
+
+//const MY_IP = "localhost";
+//const API_URL = `http://${MY_IP}:3001/api`;
 //const SUPER_ADMIN_WHATSAPP = "5350000000";
 const APP_NAME = "Mercado Cuba";
 
