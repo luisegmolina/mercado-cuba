@@ -7,7 +7,13 @@ const jwt = require("jsonwebtoken");
 //const path = require("path");
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "*", // Permite que cualquier dominio (como tu .pages.dev) se conecte
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 // Aumentar límite para subida de imágenes
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
