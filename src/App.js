@@ -628,6 +628,7 @@ const LandingPage = () => {
           >
             <Grid size={18} /> Explorar Todo el Mercado
           </button>
+          
           <button
             onClick={() => navigate("/login")}
             className="w-full bg-gray-800 text-gray-200 py-3.5 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
@@ -822,13 +823,13 @@ const AuthScreen = ({ mode }) => {
                 <Input
                   label="Nombre Tienda"
                   required
-                  value={form.name}
+                  value={form.name || ""} // Si es undefined o null, usa ""
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
                 <Input
                   label="Dueño"
                   required
-                  value={form.owner}
+                  value={form.owner || ""}
                   onChange={(e) => setForm({ ...form, owner: e.target.value })}
                 />
               </>
@@ -894,10 +895,11 @@ const VendorDashboard = () => {
   const [editP, setEditP] = useState(null);
   const [formP, setFormP] = useState({});
   const [formS, setFormS] = useState({
-    name: myStore?.name,
-    description: myStore?.description,
-    logoUrl: myStore?.logo_url,
-    whatsapp: myStore?.whatsapp,
+    name: myStore?.name || "",
+    description: myStore?.description || "",
+    logoUrl: myStore?.logo_url || "",
+    whatsapp: myStore?.whatsapp || "",
+    is_public_market: myStore?.is_public_market || false,
   });
 
   const openModal = (p) => {
@@ -1044,19 +1046,19 @@ const VendorDashboard = () => {
           <Card className="p-5 space-y-4">
             <Input
               label="Nombre Tienda"
-              value={formS.name}
+              value={formS.name || ""}
               onChange={(e) => setFormS({ ...formS, name: e.target.value })}
             />
             <Input
               label="WhatsApp público"
               type="number"
-              value={formS.whatsapp}
+              value={formS.whatsapp || ""}
               onChange={(e) => setFormS({ ...formS, whatsapp: e.target.value })}
             />
             <textarea
               className="w-full px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none focus:border-blue-500"
               rows="3"
-              value={formS.description}
+              value={formS.description || ""}
               onChange={(e) =>
                 setFormS({ ...formS, description: e.target.value })
               }
@@ -1080,7 +1082,7 @@ const VendorDashboard = () => {
               <div>
                 <h4 className="text-sm font-bold text-white">Mercado Global</h4>
                 <p className="text-[10px] text-gray-500">
-                  Aparecer en la búsqueda general del sistema
+                  Aparecer en la búsqueda general del sistema?
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -1508,7 +1510,7 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<VendorDashboard />} />
       <Route path="/admin/panel" element={<SuperAdminPanel />} />
       <Route path="/:slug" element={<StoreFrontend />} />
-      <Route path="/explorar" element={<GlobalMarketplace />} />{" "}
+      <Route path="/explorar" element={<GlobalMarketplace />} />
     </Routes>
   );
 };

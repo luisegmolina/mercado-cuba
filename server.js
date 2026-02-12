@@ -274,10 +274,13 @@ app.post("/api/admin/login", async (req, res) => {
 app.post("/api/products", authenticateToken, async (req, res) => {
   if (req.user.role !== "vendor")
     return res.status(403).json({ error: "No autorizado" });
-  const { name, priceCup, priceUsd, category, imageUrl, stock } = req.body;
+
+  // CORRECCIÓN: Agregamos is_visible al destructuring y enviamos a la BD.
+  const { name, priceCup, priceUsd, category, imageUrl, stock, is_visible } =
+    req.body;
   try {
     const newProd = await pool.query(
-      "INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+      "INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock, is_visible) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
       [
         req.user.id,
         name,
@@ -286,6 +289,7 @@ app.post("/api/products", authenticateToken, async (req, res) => {
         category,
         imageUrl,
         stock,
+        is_visible !== undefined ? is_visible : true, // Asegurar que sea true por defecto
       ],
     );
     res.json(newProd.rows[0]);
@@ -336,18 +340,33 @@ app.delete("/api/products/:id", authenticateToken, async (req, res) => {
 });
 
 app.put("/api/store/settings", authenticateToken, async (req, res) => {
-  const { name, description, logoUrl, whatsapp } = req.body;
+  const { name, description, logoUrl, whatsapp, is_public_market } = req.body;
+
+  const storeId = req.user.id;
+
   try {
-    const updated = await pool.query(
-      "UPDATE stores SET name=COALESCE($1, name), description=COALESCE($2, description), logo_url=COALESCE($3, logo_url), whatsapp=COALESCE($4, whatsapp) WHERE id=$5 RETURNING *",
-      [name, description, logoUrl, whatsapp, req.user.id],
-    );
-    delete updated.rows[0].password_hash;
-    res.json(updated.rows[0]);
+    const query = `
+      UPDATE stores 
+      SET name = $1, description = $2, logo_url = $3, whatsapp = $4, is_public_market = $5
+      WHERE id = $6
+      RETURNING *;
+    `;
+    const values = [
+      name,
+      description,
+      logoUrl,
+      whatsapp,
+      is_public_market,
+      storeId,
+    ];
+    const result = await pool.query(query, values);
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Tienda no encontrada" });
+
+    res.json(result.rows[0]);
   } catch (err) {
-    if (err.code === "23505")
-      return res.status(400).json({ error: "Número en uso" });
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "Error al actualizar la configuración" });
   }
 });
 
@@ -363,7 +382,7 @@ app.get("/api/admin/dashboard", authenticateToken, async (req, res) => {
         (SELECT COUNT(*) FROM activation_codes) as available_licenses
     `);
     const stores = await pool.query(
-      `SELECT id, name, slug, whatsapp, owner_name, is_suspended, whatsapp_clicks, created_at, description FROM stores ORDER BY created_at DESC`,
+      `SELECT id, name, slug, whatsapp, owner_name, is_suspended, whatsapp_clicks, created_at, description, is_public_market FROM stores ORDER BY created_at DESC`,
     );
     const codes = await pool.query(
       "SELECT * FROM activation_codes ORDER BY created_at DESC",
