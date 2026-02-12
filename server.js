@@ -115,9 +115,9 @@ app.get("/api/public/all-products", async (req, res) => {
         s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug
       FROM products p
       JOIN stores s ON p.store_id = s.id
-      WHERE s.is_public_market = true OR s.is_public_market::text = 'true' 
-        AND s.is_suspended = false OR s.is_suspended::text = 'false'
-        AND p.is_visible = true OR p.is_visible::text = 'true'
+      WHERE (s.is_public_market = true OR s.is_public_market::text = 'true') 
+        AND (s.is_suspended = false OR s.is_suspended::text = 'false')
+        AND (p.is_visible = true OR p.is_visible::text = 'true')
       ORDER BY p.id DESC;
     `;
     const result = await pool.query(query);
