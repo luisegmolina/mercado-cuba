@@ -106,6 +106,28 @@ app.get("/api/public/config", async (req, res) => {
   }
 });
 
+// Endpoint para obtener la vitrina global
+app.get("/api/public/all-products", async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        p.id, p.name, p.price_cup, p.price_usd, p.image_url, 
+        s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug
+      FROM products p
+      JOIN stores s ON p.store_id = s.id
+      WHERE s.is_public_market = true 
+        AND s.is_suspended = false
+        AND p.is_visible = true
+      ORDER BY p.id DESC;
+    `;
+    const result = await pool.query(query);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener el mercado global" });
+  }
+});
+
 app.get("/api/public/stores", async (req, res) => {
   try {
     const result = await pool.query(

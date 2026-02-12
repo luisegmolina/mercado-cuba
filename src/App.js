@@ -1,4 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
+import GlobalMarketplace from "./Marketplace"; // Asegúrate de que el nombre coincida
 import "./index.css";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
@@ -622,6 +623,12 @@ const LandingPage = () => {
         </Card>
         <div className="text-center space-y-3">
           <button
+            onClick={() => navigate("/explorar")}
+            className="w-full bg-blue-600/10 text-blue-500 py-3.5 rounded-xl text-sm font-bold border border-blue-600/20 hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2 mb-3"
+          >
+            <Grid size={18} /> Explorar Todo el Mercado
+          </button>
+          <button
             onClick={() => navigate("/login")}
             className="w-full bg-gray-800 text-gray-200 py-3.5 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
           >
@@ -1069,6 +1076,25 @@ const VendorDashboard = () => {
                 />
               </label>
             </div>
+            <div className="p-4 bg-gray-900/50 rounded-2xl border border-gray-700 flex items-center justify-between mb-4">
+              <div>
+                <h4 className="text-sm font-bold text-white">Mercado Global</h4>
+                <p className="text-[10px] text-gray-500">
+                  Aparecer en la búsqueda general del sistema
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={formS.is_public_market}
+                  onChange={(e) =>
+                    setFormS({ ...formS, is_public_market: e.target.checked })
+                  }
+                />
+                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
             <Button
               onClick={() => updateStoreSettings(formS)}
               className="w-full"
@@ -1482,6 +1508,7 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<VendorDashboard />} />
       <Route path="/admin/panel" element={<SuperAdminPanel />} />
       <Route path="/:slug" element={<StoreFrontend />} />
+      <Route path="/explorar" element={<GlobalMarketplace />} />{" "}
     </Routes>
   );
 };
