@@ -552,7 +552,7 @@ app.get("/api/public/products/province/:id", async (req, res) => {
       WHERE (s.is_public_market = true OR s.is_public_market::text = 'true') 
         AND (s.is_suspended = false OR s.is_suspended::text = 'false')
         AND (p.is_visible = true OR p.is_visible::text = 'true')
-        AND s.province_id = $1  -- <--- AQUÍ ESTÁ EL FILTRO MÁGICO
+        AND (s.province_id = $1  OR prov.id = "") -- <-- Aquí está la magia: si la provincia del store es la elegida, o si el store no tiene provincia asignada (prov.id = "")
       ORDER BY p.id DESC;
     `;
     const result = await pool.query(query, [id]);
