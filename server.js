@@ -112,9 +112,11 @@ app.get("/api/public/all-products", async (req, res) => {
     const query = `
       SELECT 
         p.id, p.name, p.price_cup, p.price_usd, p.image_url, 
-        s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug
+        s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug,
+        prov.name as store_province
       FROM products p
       JOIN stores s ON p.store_id = s.id
+      LEFT JOIN provinces prov ON s.province_id = prov.id -- <--- NUEVO JOIN
       WHERE (s.is_public_market = true OR s.is_public_market::text = 'true') 
         AND (s.is_suspended = false OR s.is_suspended::text = 'false')
         AND (p.is_visible = true OR p.is_visible::text = 'true')
@@ -340,15 +342,21 @@ app.delete("/api/products/:id", authenticateToken, async (req, res) => {
 });
 
 app.put("/api/store/settings", authenticateToken, async (req, res) => {
-  const { name, description, logoUrl, whatsapp, is_public_market } = req.body;
-
+  const {
+    name,
+    description,
+    logoUrl,
+    whatsapp,
+    is_public_market,
+    province_id,
+  } = req.body;
   const storeId = req.user.id;
 
   try {
     const query = `
       UPDATE stores 
-      SET name = $1, description = $2, logo_url = $3, whatsapp = $4, is_public_market = $5
-      WHERE id = $6
+      SET name = $1, description = $2, logo_url = $3, whatsapp = $4, is_public_market = $5, province_id = $6
+      WHERE id = $7
       RETURNING *;
     `;
     const values = [
@@ -357,6 +365,7 @@ app.put("/api/store/settings", authenticateToken, async (req, res) => {
       logoUrl,
       whatsapp,
       is_public_market,
+      province_id,
       storeId,
     ];
     const result = await pool.query(query, values);
@@ -367,6 +376,17 @@ app.put("/api/store/settings", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al actualizar la configuración" });
+  }
+});
+
+app.get("/api/public/provinces", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM provinces ORDER BY name ASC",
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener provincias" });
   }
 });
 

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  //use,
+} from "react";
 import GlobalMarketplace from "./Marketplace"; // Asegúrate de que el nombre coincida
 import "./index.css";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
@@ -159,6 +165,15 @@ const AppProvider = ({ children }) => {
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
   const [superAdminContact, setSuperAdminContact] = useState("5350000000");
+
+  useEffect(() => {
+    fetch(`${API_URL}/public/provinces`)
+      .then((res) => res.json())
+      .then((data) => {
+        //setProvinces(data);
+      })
+      .catch((err) => console.error("Error cargando provincias:", err));
+  }, []);
 
   // Sincronización del Token con el LocalStorage
   useEffect(() => {
@@ -628,7 +643,7 @@ const LandingPage = () => {
           >
             <Grid size={18} /> Explorar Todo el Mercado
           </button>
-          
+
           <button
             onClick={() => navigate("/login")}
             className="w-full bg-gray-800 text-gray-200 py-3.5 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
@@ -894,13 +909,25 @@ const VendorDashboard = () => {
   const [modal, setModal] = useState(false);
   const [editP, setEditP] = useState(null);
   const [formP, setFormP] = useState({});
+  const [provinces, setProvinces] = useState([]); // Estado para provincias
+
   const [formS, setFormS] = useState({
     name: myStore?.name || "",
     description: myStore?.description || "",
     logoUrl: myStore?.logo_url || "",
     whatsapp: myStore?.whatsapp || "",
     is_public_market: myStore?.is_public_market || false,
+    province_id: myStore?.province_id || "",
   });
+
+  useEffect(() => {
+    fetch(`${API_URL}/public/provinces`)
+      .then((res) => res.json())
+      .then((data) => {
+        setProvinces(data);
+      })
+      .catch((err) => console.error("Error obteniendo las provincias:", err));
+  }, []);
 
   const openModal = (p) => {
     setEditP(p);
@@ -1097,6 +1124,26 @@ const VendorDashboard = () => {
                 <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
+
+            <select
+              className="w-full px-4 py-3.5 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none appearance-none"
+              value={formS.province_id || ""}
+              onChange={(e) =>
+                setFormS({ ...formS, province_id: e.target.value })
+              }
+            >
+              <option value="" className="text-gray-500">
+                Seleccionar Provincia...
+              </option>
+
+              {/* AHORA USAMOS LA VARIABLE DE ESTADO 'provinces' */}
+              {provinces.map((prov) => (
+                <option key={prov.id} value={prov.id}>
+                  {prov.name}
+                </option>
+              ))}
+            </select>
+
             <Button
               onClick={() => updateStoreSettings(formS)}
               className="w-full"
