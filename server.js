@@ -537,4 +537,30 @@ app.put("/api/admin/config/contact", authenticateToken, async (req, res) => {
   }
 });
 
+// Endpoint OPTIMIZADO: Busca productos SOLO de una provincia específica
+app.get("/api/public/products/province/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const query = `
+      SELECT 
+        p.id, p.name, p.price_cup, p.price_usd, p.image_url, 
+        s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug,
+        prov.name as store_province
+      FROM products p
+      JOIN stores s ON p.store_id = s.id
+      JOIN provinces prov ON s.province_id = prov.id
+      WHERE (s.is_public_market = true OR s.is_public_market::text = 'true') 
+        AND (s.is_suspended = false OR s.is_suspended::text = 'false')
+        AND (p.is_visible = true OR p.is_visible::text = 'true')
+        AND s.province_id = $1  -- <--- AQUÍ ESTÁ EL FILTRO MÁGICO
+      ORDER BY p.id DESC;
+    `;
+    const result = await pool.query(query, [id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener productos por provincia" });
+  }
+});
+
 app.listen(PORT, () => console.log(`Backend CubaMarket en puerto ${PORT}`));
