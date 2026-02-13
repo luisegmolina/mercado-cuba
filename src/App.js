@@ -17,6 +17,8 @@ import {
 } from "react-router-dom";
 // Importamos una colección completa de iconos para mejorar la experiencia visual
 import {
+  BookOpen,
+  FileText,
   ShoppingBag,
   Plus,
   Trash2,
@@ -597,11 +599,125 @@ const ImageGallery = ({ imagesStr }) => {
 };
 
 // --- VISTAS ---
+// --- COMPONENTE DEL MANUAL ---
+// Componente Manual - Alineado a la Izquierda
+const ManualModal = ({ onClose, contact }) => (
+  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div className="bg-gray-800 w-full max-w-2xl max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-700">
+      {/* Cabecera */}
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900">
+        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <BookOpen className="text-blue-500" /> Manual de Vendedor
+        </h2>
+        <button
+          onClick={onClose}
+          className="p-2 bg-gray-800 rounded-full text-gray-400 hover:text-white"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* Contenido - Alineado a la Izquierda */}
+      <div className="p-6 overflow-y-auto space-y-6 text-gray-300 leading-relaxed text-left">
+        {" "}
+        {/* <--- text-left */}
+        <section>
+          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            🔐 1. Registro
+          </h3>
+          <ul className="list-disc pl-5 space-y-1 text-sm marker:text-blue-500">
+            <li>
+              Pide tu <strong>Código de Licencia</strong> al administrador.
+            </li>
+            <li>
+              Toca en <strong>"Soy Vendedor"</strong> y luego en{" "}
+              <strong>"Regístrate"</strong>.
+            </li>
+            <li>
+              Usa tu número de WhatsApp real (sin el +), ahí te llegarán los
+              pedidos.
+            </li>
+            <li className="text-yellow-500/90 font-medium pt-1">
+              Si no tienes código de licencia contacta al: {contact}
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            ⚙️ 2. Configuración Inicial
+          </h3>
+          <p className="text-sm mb-2 text-gray-400">
+            Ve a la pestaña <strong>Ajustes</strong> (⚙️) abajo a la derecha:
+          </p>
+          <ul className="list-disc pl-5 space-y-2 text-sm marker:text-blue-500">
+            <li>
+              <strong>Ubicación:</strong> Selecciona tu Provincia (¡Vital para
+              que te encuentren!).
+            </li>
+            <li>
+              <strong>Logo:</strong> Sube una foto de tu marca.
+            </li>
+            <li>
+              <strong>Mercado Global:</strong> Activa la casilla para aparecer
+              en el buscador público.
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            📸 3. Subir Productos
+          </h3>
+          <p className="text-sm mb-2 text-gray-400">
+            Ve a la pestaña <strong>Productos</strong> (田):
+          </p>
+          <ul className="list-disc pl-5 space-y-1 text-sm marker:text-blue-500">
+            <li>
+              Toca el botón <strong>(+) Azul</strong>.
+            </li>
+            <li>Pon nombre, precio (CUP/USD) y fotos.</li>
+            <li className="text-green-400 font-bold">
+              ¡Listo! Ya está visible en la vista general.
+            </li>
+            <li>Recuerda que puedes editar o eliminar productos cuando quieras.</li>
+            <li>Tambien puedes publicar tu compiando el enlace de tu tienda y compartiendolo en tus redes sociales o grupos de WhatsApp para atraer más clientes.</li>
+          </ul>
+        </section>
+        <section>
+          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            🚀 4. Recibir Pedidos
+          </h3>
+          <div className="bg-blue-900/10 p-4 rounded-l-md border-l-4 border-blue-500 text-sm">
+            <p>
+              Cuando un cliente toca <strong>"PEDIR"</strong>, se abrirá tu
+              WhatsApp automáticamente con el mensaje del producto. Tú cierras
+              la venta por chat privado.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      {/* Pie del Manual */}
+      <div className="p-4 border-t border-gray-700 bg-gray-900 flex flex-col gap-3">
+        <p className="text-xs text-center text-gray-500">
+          Soporte Técnico:{" "}
+          <span className="text-gray-300 font-bold">{contact}</span>
+        </p>
+        <button
+          onClick={onClose}
+          className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-blue-500 transition-colors shadow-lg"
+        >
+          ¡Entendido, quiero empezar!
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [input, setInput] = useState("");
   const { superAdminContact } = useContext(AppContext);
+  const [showManual, setShowManual] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -650,6 +766,20 @@ const LandingPage = () => {
           >
             <User size={18} /> Soy Vendedor (Entrar)
           </button>
+          {/* 2. NUEVO BOTÓN DEL MANUAL */}
+          <button
+            onClick={() => setShowManual(true)}
+            className="w-full bg-white/5 text-gray-300 py-3.5 rounded-xl text-sm font-bold border border-gray-600/50 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+          >
+            <FileText size={18} /> ¿Cómo funciona? (Guía)
+          </button>
+          {/* Manual Modal */}
+          {showManual && (
+            <ManualModal
+              onClose={() => setShowManual(false)}
+              contact={superAdminContact}
+            />
+          )}
           <a
             href={`https://wa.me/${superAdminContact}?text=Hola, solicito una licencia`}
             target="_blank"
