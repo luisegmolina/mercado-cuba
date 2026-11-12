@@ -45,6 +45,7 @@ import {
   Copy,
   Store,
   ChevronLeft,
+  ChevronRight,
   Loader2,
   // Lock,
   Eye,
@@ -2286,6 +2287,12 @@ const SuperAdminPanel = () => {
   const [resetP, setResetP] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [adminContact, setAdminContact] = useState(superAdminContact);
+  // Búsqueda y paginación del panel (Tiendas: 10/pág; Licencias: 15/pág).
+  const [storeQuery, setStoreQuery] = useState("");
+  const [storeStatus, setStoreStatus] = useState("all");
+  const [storePage, setStorePage] = useState(1);
+  const [codeQuery, setCodeQuery] = useState("");
+  const [codePage, setCodePage] = useState(1);
 
   useEffect(() => {
     setAdminContact(superAdminContact);
@@ -2293,6 +2300,49 @@ const SuperAdminPanel = () => {
 
   if (!adminData) return null;
   const { stats, stores, codes } = adminData;
+
+  // --- Filtrado y paginación de Tiendas (10 por página) ---
+  const STORES_PER_PAGE = 10;
+  const CODES_PER_PAGE = 15;
+  const norm = (v) => String(v || "").toLowerCase();
+  const storeQueryNorm = storeQuery.trim().toLowerCase();
+  const filteredStores = stores.filter((s) => {
+    if (storeStatus === "active" && s.is_suspended) return false;
+    if (storeStatus === "suspended" && !s.is_suspended) return false;
+    if (!storeQueryNorm) return true;
+    const slug =
+      s.slug || s.name.toLowerCase().trim().replace(/\s+/g, "-");
+    return (
+      norm(s.name).includes(storeQueryNorm) ||
+      norm(s.owner_name).includes(storeQueryNorm) ||
+      norm(s.whatsapp).includes(storeQueryNorm) ||
+      norm(slug).includes(storeQueryNorm)
+    );
+  });
+  const storeTotalPages = Math.max(
+    1,
+    Math.ceil(filteredStores.length / STORES_PER_PAGE),
+  );
+  const storePageSafe = Math.min(storePage, storeTotalPages);
+  const storePageStores = filteredStores.slice(
+    (storePageSafe - 1) * STORES_PER_PAGE,
+    storePageSafe * STORES_PER_PAGE,
+  );
+
+  // --- Filtrado y paginación de Licencias (15 por página) ---
+  const codeQueryNorm = codeQuery.trim().toLowerCase();
+  const filteredCodes = codes.filter((c) =>
+    !codeQueryNorm ? true : norm(c.code).includes(codeQueryNorm),
+  );
+  const codeTotalPages = Math.max(
+    1,
+    Math.ceil(filteredCodes.length / CODES_PER_PAGE),
+  );
+  const codePageSafe = Math.min(codePage, codeTotalPages);
+  const codePageCodes = filteredCodes.slice(
+    (codePageSafe - 1) * CODES_PER_PAGE,
+    codePageSafe * CODES_PER_PAGE,
+  );
 
   const handleStoreReset = (e) => {
     e.preventDefault();
@@ -2356,8 +2406,29 @@ const SuperAdminPanel = () => {
             <Button onClick={generateCode} className="w-full mb-4">
               Generar Nueva Licencia
             </Button>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {codes.map((c) => (
+            <div className="relative mb-3">
+              <Search
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+              />
+              <input
+                type="text"
+                placeholder="Buscar licencia por código..."
+                value={codeQuery}
+                onChange={(e) => {
+                  setCodeQuery(e.target.value);
+                  setCodePage(1);
+                }}
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+              />
+            </div>
+            <p className="text-xs text-slate-500 mb-3">
+              {filteredCodes.length} licencias
+              {filteredCodes.length > 0 &&
+                ` · mostrando ${(codePageSafe - 1) * CODES_PER_PAGE + 1}–${Math.min(codePageSafe * CODES_PER_PAGE, filteredCodes.length)}`}
+            </p>
+            <div className="space-y-2">
+              {codePageCodes.map((c) => (
                 <div
                   key={c.id}
                   className="flex justify-between items-center p-3 bg-white rounded-lg border border-slate-200"
@@ -2373,13 +2444,80 @@ const SuperAdminPanel = () => {
                   </button>
                 </div>
               ))}
+              {filteredCodes.length === 0 && (
+                <p className="text-sm text-slate-500 text-center py-6">
+                  No hay licencias que coincidan con la búsqueda.
+                </p>
+              )}
             </div>
+            {codeTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <button
+                  disabled={codePageSafe <= 1}
+                  onClick={() => setCodePage(codePageSafe - 1)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} /> Anterior
+                </button>
+                <span className="text-xs text-slate-500 font-bold">
+                  Página {codePageSafe} de {codeTotalPages}
+                </span>
+                <button
+                  disabled={codePageSafe >= codeTotalPages}
+                  onClick={() => setCodePage(codePageSafe + 1)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold disabled:opacity-40"
+                >
+                  Siguiente <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </Card>
         )}
 
         {tab === "stores" && (
           <div className="space-y-3">
-            {stores.map((s) => {
+            <Card className="p-4 space-y-3">
+              <div className="relative">
+                <Search
+                  size={17}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Buscar por tienda, dueño, WhatsApp o slug..."
+                  value={storeQuery}
+                  onChange={(e) => {
+                    setStoreQuery(e.target.value);
+                    setStorePage(1);
+                  }}
+                  className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                {[
+                  { id: "all", label: "Todas" },
+                  { id: "active", label: "Activas" },
+                  { id: "suspended", label: "Suspendidas" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setStoreStatus(f.id);
+                      setStorePage(1);
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${storeStatus === f.id ? "bg-cyan-600 text-white" : "bg-white text-slate-500 border border-slate-200"}`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500">
+                {filteredStores.length} tiendas
+                {filteredStores.length > 0 &&
+                  ` · mostrando ${(storePageSafe - 1) * STORES_PER_PAGE + 1}–${Math.min(storePageSafe * STORES_PER_PAGE, filteredStores.length)}`}
+              </p>
+            </Card>
+            {storePageStores.map((s) => {
               // Generamos el slug basado en el nombre (o usamos s.slug si tu backend ya lo trae)
               const storeSlug =
                 s.slug || s.name.toLowerCase().trim().replace(/\s+/g, "-");
@@ -2452,6 +2590,34 @@ const SuperAdminPanel = () => {
                 </Card>
               );
             })}
+            {filteredStores.length === 0 && (
+              <Card className="p-6">
+                <p className="text-sm text-slate-500 text-center">
+                  No hay tiendas que coincidan con la búsqueda.
+                </p>
+              </Card>
+            )}
+            {storeTotalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <button
+                  disabled={storePageSafe <= 1}
+                  onClick={() => setStorePage(storePageSafe - 1)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} /> Anterior
+                </button>
+                <span className="text-xs text-slate-500 font-bold">
+                  Página {storePageSafe} de {storeTotalPages}
+                </span>
+                <button
+                  disabled={storePageSafe >= storeTotalPages}
+                  onClick={() => setStorePage(storePageSafe + 1)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold disabled:opacity-40"
+                >
+                  Siguiente <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
