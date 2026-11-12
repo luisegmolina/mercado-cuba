@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShoppingBag,
@@ -12,9 +12,17 @@ import {
   Globe,
   AlertCircle,
 } from "lucide-react";
+import {
+  parseImages,
+  formatPrice,
+  priceLabel,
+  waLink,
+  orderMessage,
+  ProductDetailModal,
+} from "./shared";
 
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
-const PAGE_LIMIT = 100;
+const PAGE_LIMIT = 20;
 
 const GlobalMarketplace = () => {
   const [products, setProducts] = useState([]);
@@ -23,6 +31,10 @@ const GlobalMarketplace = () => {
   const [initialLoading, setInitialLoading] = useState(true); // Solo para cargar la lista de provincias
   // "provinces" | "products" | null
   const [loadError, setLoadError] = useState(null);
+  // Paginación: se cargan de 20 en 20 con "Cargar más".
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [detailProduct, setDetailProduct] = useState(null);
 
   // Estado crucial: Si es null, mostramos el selector. Si tiene ID, mostramos productos.
   // id "all" = todas las provincias (endpoint /public/all-products).
@@ -30,16 +42,7 @@ const GlobalMarketplace = () => {
   const [filterText, setFilterText] = useState("");
 
   const navigate = useNavigate();
-
-  const parseImages = (imgStr) => {
-    if (!imgStr) return [];
-    try {
-      const parsed = JSON.parse(imgStr);
-      return Array.isArray(parsed) ? parsed : [imgStr];
-    } catch (e) {
-      return typeof imgStr === "string" ? [imgStr] : [];
-    }
-  };
+  const searchTimer = useRef(null);
 
   // 1. Al inicio, SOLO cargamos la lista de provincias (muy rápido)
   const loadProvinces = async () => {
@@ -64,23 +67,27 @@ const GlobalMarketplace = () => {
     loadProvinces();
   }, []);
 
-  // 2. Función para cargar productos cuando el usuario elige provincia
-  const loadProducts = async (province) => {
+  // 2. Función para cargar productos cuando el usuario elige provincia.
+  // append=false reemplaza la lista (cambio de provincia o de búsqueda);
+  // append=true añade la siguiente página ("Cargar más").
+  const loadProducts = async (province, startOffset = 0, append = false) => {
     setLoading(true);
     setLoadError(null);
     try {
       const url =
         province.id === "all"
-          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}`
-          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}`;
+          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}`
+          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error("Respuesta inválida");
-      setProducts(data);
+      setProducts((prev) => (append ? [...prev, ...data] : data));
+      setHasMore(data.length >= PAGE_LIMIT);
+      setOffset(startOffset + data.length);
     } catch (err) {
       console.error(err);
-      setProducts([]);
+      if (!append) setProducts([]);
       setLoadError("products");
     } finally {
       setLoading(false);
@@ -90,7 +97,11 @@ const GlobalMarketplace = () => {
   const handleSelectProvince = (provinceId, provinceName) => {
     const province = { id: provinceId, name: provinceName };
     setSelectedProvince(province);
-    loadProducts(province);
+    setFilterText("");
+    setOffset(0);
+    setHasMore(false);
+    setProducts([]);
+    loadProducts(province, 0, false);
   };
 
   const handleBackToSelector = () => {
@@ -98,6 +109,25 @@ const GlobalMarketplace = () => {
     setProducts([]);
     setFilterText("");
     setLoadError(null);
+    setOffset(0);
+    setHasMore(false);
+  };
+
+  const handleLoadMore = () => {
+    if (selectedProvince && !loading) {
+      loadProducts(selectedProvince, offset, true);
+    }
+  };
+
+  // La búsqueda filtra en local lo ya cargado y, con una pausa corta
+  // para no pedir a cada tecla, vuelve a cargar desde la primera página.
+  const handleSearchChange = (e) => {
+    const v = e.target.value;
+    setFilterText(v);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      if (selectedProvince) loadProducts(selectedProvince, 0, false);
+    }, 500);
   };
 
   // Filtrado local (solo busca texto en los productos YA descargados de esa provincia)
@@ -153,10 +183,10 @@ const GlobalMarketplace = () => {
             <MapPin size={40} />
           </div>
           <h1 className="text-3xl font-black tracking-tight mb-2">
-            Bienvenido
+            ¿Por dónde andas? 🇨🇺
           </h1>
           <p className="text-gray-400">
-            Selecciona tu ubicación para ver ofertas cercanas
+            Elige tu provincia para ver lo que hay cerca de ti
           </p>
         </div>
 
@@ -227,7 +257,7 @@ const GlobalMarketplace = () => {
             className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-700 bg-gray-800 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
             placeholder={`Buscar en ${selectedProvince.name}...`}
             value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
+            onChange={handleSearchChange}
           />
         </div>
       </div>
@@ -247,7 +277,7 @@ const GlobalMarketplace = () => {
             No se pudieron cargar los productos.
           </p>
           <button
-            onClick={() => loadProducts(selectedProvince)}
+            onClick={() => loadProducts(selectedProvince, 0, false)}
             className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all"
           >
             Reintentar
@@ -261,7 +291,8 @@ const GlobalMarketplace = () => {
             return (
               <div
                 key={p.id}
-                className="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 flex flex-col shadow-lg"
+                onClick={() => setDetailProduct(p)}
+                className="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 flex flex-col shadow-lg cursor-pointer active:scale-[0.98] transition-transform"
               >
                 <div className="aspect-square bg-gray-900 relative">
                   {mainImg ? (
@@ -277,7 +308,10 @@ const GlobalMarketplace = () => {
                     </div>
                   )}
                   <div
-                    onClick={() => navigate(`/${p.store_slug}`)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/${p.store_slug}`);
+                    }}
                     className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
                   >
                     <Store size={10} className="text-blue-400 shrink-0" />
@@ -293,23 +327,38 @@ const GlobalMarketplace = () => {
                   </h3>
                   <div className="mt-auto pt-2">
                     <div className="flex flex-wrap gap-1 items-baseline mb-2">
-                      {p.price_cup > 0 && (
+                      {Number(p.price_cup) > 0 && (
                         <span className="text-blue-400 font-black text-sm">
-                          {p.price_cup} CUP
+                          {formatPrice(p.price_cup, "CUP")}
                         </span>
                       )}
-                      {p.price_usd > 0 && (
+                      {Number(p.price_usd) > 0 && (
                         <span className="text-emerald-400 font-bold text-[10px] bg-emerald-900/20 px-1 rounded ml-auto">
-                          {p.price_usd} USD
+                          {formatPrice(p.price_usd, "USD")}
                         </span>
                       )}
                     </div>
                     <button
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         window.open(
-                          `https://wa.me/${p.store_whatsapp}?text=${encodeURIComponent(`Hola, vi en Mercado (${selectedProvince.name}): ${p.name}`)}`,
-                        )
-                      }
+                          waLink(
+                            p.store_whatsapp,
+                            orderMessage({
+                              name: p.name,
+                              prices: priceLabel(p),
+                              storeName: p.store_name,
+                              province:
+                                p.store_province ||
+                                (selectedProvince.id !== "all"
+                                  ? selectedProvince.name
+                                  : ""),
+                              slug: p.store_slug,
+                            }),
+                          ),
+                          "_blank",
+                        );
+                      }}
                       className="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded-lg text-xs font-bold uppercase flex items-center justify-center gap-2"
                     >
                       <MessageCircle size={12} /> Pedir
@@ -326,19 +375,59 @@ const GlobalMarketplace = () => {
         <div className="text-center py-20 opacity-50 px-6">
           <ShoppingBag size={48} className="mx-auto mb-4 text-gray-600" />
           <p className="text-sm">
-            No hay productos en{" "}
-            <span className="text-blue-400 font-bold">
-              {selectedProvince.name}
-            </span>
-            .
+            {filterText ? (
+              <>
+                No encontramos eso por aquí, prueba con otra palabra o{" "}
+                <button
+                  onClick={handleBackToSelector}
+                  className="text-blue-400 underline"
+                >
+                  cambia de provincia
+                </button>
+                .
+              </>
+            ) : (
+              <>
+                No hay productos en{" "}
+                <span className="text-blue-400 font-bold">
+                  {selectedProvince.name}
+                </span>
+                .
+              </>
+            )}
           </p>
-          <button
-            onClick={handleBackToSelector}
-            className="mt-4 text-xs text-blue-400 underline"
-          >
-            Cambiar provincia
-          </button>
+          {!filterText && (
+            <button
+              onClick={handleBackToSelector}
+              className="mt-4 text-xs text-blue-400 underline"
+            >
+              Cambiar provincia
+            </button>
+          )}
         </div>
+      )}
+
+      {!loading && loadError !== "products" && filtered.length > 0 && (
+        <div className="px-4 mt-6 text-center space-y-3">
+          <p className="text-xs text-gray-500">
+            Mostrando {filtered.length} productos
+          </p>
+          {hasMore && (
+            <button
+              onClick={handleLoadMore}
+              className="bg-gray-800 text-gray-200 px-6 py-3 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all"
+            >
+              Cargar más
+            </button>
+          )}
+        </div>
+      )}
+
+      {detailProduct && (
+        <ProductDetailModal
+          product={detailProduct}
+          onClose={() => setDetailProduct(null)}
+        />
       )}
     </div>
   );

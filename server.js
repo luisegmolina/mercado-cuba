@@ -54,6 +54,33 @@ const createSlug = (name) => {
     .replace(/--+/g, "-");
 };
 
+// --- TELÉFONOS (WhatsApp) ---
+// Normaliza a dígitos con código de país: Cuba (8 dígitos) -> "53"+n,
+// EEUU (10 dígitos) -> "1"+n; si ya trae el código, se deja tal cual.
+const normalizePhone = (raw) => {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("53") && d.length === 10) return d;
+  if (d.length === 8) return "53" + d;
+  if (d.startsWith("1") && d.length === 11) return d;
+  if (d.length === 10) return "1" + d;
+  return d;
+};
+
+// Quita el código de país: "5359150911" -> "59150911", "18063168743" -> "8063168743".
+const stripCountryCode = (normalized) => {
+  if (normalized.startsWith("53") && normalized.length === 10)
+    return normalized.slice(2);
+  if (normalized.startsWith("1") && normalized.length === 11)
+    return normalized.slice(1);
+  return normalized;
+};
+
+// Válido: Cuba 53+8 dígitos o EEUU 1+10 dígitos.
+const isValidPhone = (normalized) =>
+  (normalized.startsWith("53") && normalized.length === 10) ||
+  (normalized.startsWith("1") && normalized.length === 11);
+
 // Columnas seguras de una tienda (nunca devolver password_hash)
 const SAFE_STORE_COLUMNS =
   "id, name, slug, description, whatsapp, logo_url, owner_name, is_active, is_suspended, is_public_market, province_id, whatsapp_clicks, created_at";
@@ -136,7 +163,7 @@ const authLimiter = rateLimit({
 });
 
 // --- SALUD (sin consultar la base) ---
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
@@ -187,7 +214,7 @@ app.get("/api/public/all-products", async (req, res, next) => {
     const { limit, offset } = parsePagination(req);
     const query = `
       SELECT 
-        p.id, p.name, p.price_cup, p.price_usd, p.image_url, 
+        p.id, p.name, p.price_cup, p.price_usd, p.image_url, p.category, p.stock, p.description,
         s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug,
         prov.name as store_province
       FROM products p
@@ -246,9 +273,21 @@ app.get("/api/store/:identifier", async (req, res, next) => {
 app.post("/api/login", authLimiter, async (req, res, next) => {
   const { whatsapp, password } = req.body;
   try {
+    // El vendedor puede escribir su número con o sin código de país:
+    // se prueban el normalizado (+53/+1), sin código y el valor original.
+    const normalized = normalizePhone(whatsapp);
+    const candidates = [
+      ...new Set(
+        [
+          normalized,
+          stripCountryCode(normalized),
+          String(whatsapp ?? "").replace(/\D/g, ""),
+        ].filter(Boolean),
+      ),
+    ];
     const storeRes = await pool.query(
-      "SELECT * FROM stores WHERE whatsapp = $1",
-      [whatsapp],
+      "SELECT * FROM stores WHERE whatsapp = ANY($1)",
+      [candidates],
     );
     if (storeRes.rows.length === 0)
       return res.status(404).json({ error: "Usuario no encontrado" });
@@ -280,6 +319,11 @@ app.post("/api/register", authLimiter, async (req, res) => {
     return res.status(400).json({ error: "El nombre de la tienda es obligatorio" });
   if (!whatsapp || !String(whatsapp).trim())
     return res.status(400).json({ error: "El número de WhatsApp es obligatorio" });
+  const normalizedWhatsapp = normalizePhone(whatsapp);
+  if (!isValidPhone(normalizedWhatsapp))
+    return res.status(400).json({
+      error: "Número de WhatsApp inválido (revisa el código de país)",
+    });
   if (!password || String(password).length < 6)
     return res
       .status(400)
@@ -321,7 +365,7 @@ app.post("/api/register", authLimiter, async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const storeRes = await client.query(
       `INSERT INTO stores (name, slug, whatsapp, owner_name, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING ${SAFE_STORE_COLUMNS}`,
-      [name, slug, whatsapp, ownerName, hash],
+      [name, slug, normalizedWhatsapp, ownerName, hash],
     );
     const newStore = storeRes.rows[0];
 
@@ -529,6 +573,12 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
     return res.status(400).json({ error: "El nombre de la tienda es obligatorio" });
   if (!whatsapp || !String(whatsapp).trim())
     return res.status(400).json({ error: "El número de WhatsApp es obligatorio" });
+  // Guardar el WhatsApp normalizado (+53 Cuba / +1 EEUU) y validar el formato.
+  const normalizedWhatsapp = normalizePhone(whatsapp);
+  if (!isValidPhone(normalizedWhatsapp))
+    return res.status(400).json({
+      error: "Número de WhatsApp inválido (revisa el código de país)",
+    });
   if (
     province_id !== undefined &&
     province_id !== null &&
@@ -549,7 +599,7 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
       name,
       description,
       logoUrl,
-      whatsapp,
+      normalizedWhatsapp,
       is_public_market,
       province_id === "" ? null : province_id || null,
       storeId,
@@ -770,7 +820,7 @@ app.get("/api/public/products/province/:id", async (req, res, next) => {
     const { limit, offset } = parsePagination(req);
     const query = `
       SELECT 
-        p.id, p.name, p.price_cup, p.price_usd, p.image_url, 
+        p.id, p.name, p.price_cup, p.price_usd, p.image_url, p.category, p.stock, p.description,
         s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug,
         prov.name as store_province
       FROM products p

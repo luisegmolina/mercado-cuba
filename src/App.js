@@ -7,6 +7,17 @@ import React, {
 } from "react";
 import GlobalMarketplace from "./Marketplace"; // Asegúrate de que el nombre coincida
 import "./index.css";
+import {
+  parseImages,
+  SafeImage,
+  normalizePhone,
+  formatPhone,
+  waLink,
+  formatPrice,
+  priceLabel,
+  orderMessage,
+  ProductDetailModal,
+} from "./shared";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
   BrowserRouter,
@@ -58,27 +69,8 @@ const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 const APP_NAME = "Mercado Cuba";
 
 /** * --- UTILIDADES DE PROCESAMIENTO ---
+ * (parseImages y SafeImage viven en ./shared.js y se importan arriba)
  */
-
-// Normaliza las imágenes que vienen del servidor para que siempre sean un Array manejable por React.
-const parseImages = (imgStr) => {
-  if (!imgStr) return [];
-  if (Array.isArray(imgStr)) return imgStr;
-  try {
-    const parsed = JSON.parse(imgStr);
-    if (Array.isArray(parsed)) return parsed;
-    return [imgStr];
-  } catch (e) {
-    if (typeof imgStr === "string") {
-      if (imgStr.startsWith("data:image")) return [imgStr];
-      return imgStr
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s);
-    }
-    return [];
-  }
-};
 
 // Inyecta Tailwind CSS dinámicamente.
 // Nota: El error "Unexpected token <" ocurre si este script falla al cargar.
@@ -296,7 +288,7 @@ const AppProvider = ({ children }) => {
       const res = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ whatsapp, password }),
+        body: JSON.stringify({ whatsapp: normalizePhone(whatsapp), password }),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const data = await res.json();
@@ -322,7 +314,12 @@ const AppProvider = ({ children }) => {
       const res = await fetch(`${API_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, code, password: pwd }),
+        body: JSON.stringify({
+          ...data,
+          whatsapp: normalizePhone(data.whatsapp),
+          code,
+          password: pwd,
+        }),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const resp = await res.json();
@@ -583,30 +580,7 @@ const AppProvider = ({ children }) => {
 };
 
 // --- COMPONENTES UI REUTILIZABLES ---
-
-const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) => {
-  const [error, setError] = useState(false);
-  useEffect(() => setError(false), [src]);
-
-  if (!src || error) {
-    return (
-      <div
-        className={`bg-gray-800 flex items-center justify-center border border-gray-700 ${className}`}
-      >
-        <Icon className="text-gray-600 opacity-50" size="40%" />
-      </div>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt="img"
-      className={className}
-      onError={() => setError(true)}
-      loading="lazy"
-    />
-  );
-};
+// (SafeImage vive en ./shared.js y se importa arriba)
 
 const Button = ({ children, onClick, className = "", ...props }) => (
   <button
@@ -713,7 +687,8 @@ const ManualModal = ({ onClose, contact }) => (
               pedidos.
             </li>
             <li className="text-yellow-500/90 font-medium pt-1">
-              Si no tienes código de licencia contacta al: {contact}
+              Si no tienes código de licencia contacta al:{" "}
+              {formatPhone(contact) || contact}
             </li>
           </ul>
         </section>
@@ -775,7 +750,9 @@ const ManualModal = ({ onClose, contact }) => (
       <div className="p-4 border-t border-gray-700 bg-gray-900 flex flex-col gap-3">
         <p className="text-xs text-center text-gray-500">
           Soporte Técnico:{" "}
-          <span className="text-gray-300 font-bold">{contact}</span>
+          <span className="text-gray-300 font-bold">
+            {formatPhone(contact) || contact}
+          </span>
         </p>
         <button
           onClick={onClose}
@@ -797,6 +774,33 @@ const LandingPage = () => {
   const [storesError, setStoresError] = useState(false);
   const [featured, setFeatured] = useState([]);
   const [productsTotal, setProductsTotal] = useState(null);
+  const [detailProduct, setDetailProduct] = useState(null);
+
+  // Destacados: primero los que tienen foto, sin repetir el mismo
+  // producto de la misma tienda, hasta 6. Los sin foto solo completan.
+  const pickFeatured = (list) => {
+    const seen = new Set();
+    const key = (p) =>
+      `${(p.store_slug || p.store_name || "").toLowerCase()}|${(p.name || "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ")}`;
+    const withPhoto = list.filter(
+      (p) => parseImages(p.image_url).length > 0,
+    );
+    const withoutPhoto = list.filter(
+      (p) => parseImages(p.image_url).length === 0,
+    );
+    const out = [];
+    for (const p of [...withPhoto, ...withoutPhoto]) {
+      const k = key(p);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(p);
+      if (out.length >= 6) break;
+    }
+    return out;
+  };
 
   const loadLandingData = async () => {
     setStoresError(false);
@@ -814,7 +818,7 @@ const LandingPage = () => {
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-      setFeatured(list.slice(0, 6));
+      setFeatured(pickFeatured(list));
       setProductsTotal(list.length >= 100 ? "100+" : String(list.length));
     } catch (e) {
       setFeatured([]);
@@ -837,14 +841,8 @@ const LandingPage = () => {
     s.slug || (s.name || "").toLowerCase().trim().replace(/\s+/g, "-");
 
   const licenseUrl = superAdminContact
-    ? `https://wa.me/${superAdminContact}?text=${encodeURIComponent("Hola, solicito una licencia")}`
+    ? waLink(superAdminContact, "Hola, solicito una licencia")
     : "";
-
-  const priceLabel = (p) => {
-    const cup = Number(p.price_cup) > 0 ? `${p.price_cup} CUP` : "";
-    const usd = Number(p.price_usd) > 0 ? `${p.price_usd} USD` : "";
-    return [cup, usd].filter(Boolean).join(" · ");
-  };
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -856,13 +854,14 @@ const LandingPage = () => {
           </div>
           <h1 className="text-4xl font-black text-white">{APP_NAME}</h1>
           <p className="text-lg text-blue-400 font-bold mt-2">
-            Compra y vende en toda Cuba
+            Compra y vende en toda Cuba 🇨🇺
           </p>
           <p className="text-sm text-gray-400 mt-3 leading-relaxed">
-            Tiendas de toda la isla en un solo lugar. Busca lo que necesitas,
-            pide por WhatsApp y acuerda la entrega y el pago directo con el
-            vendedor.
+            De Pinar a Guantánamo: lo que buscas, directo con el vendedor,
+            sin intermediarios. Busca, pide por WhatsApp y acuerda la entrega
+            y el pago con el vendedor.
           </p>
+          <div className="h-1.5 w-24 mx-auto mt-5 rounded-full bg-gradient-to-r from-blue-600 via-white to-red-600" />
           <p className="text-sm text-gray-200 font-bold mt-4">
             {stores.length > 0 || productsTotal !== null
               ? `${stores.length} tiendas · ${productsTotal ?? "…"} productos`
@@ -919,19 +918,20 @@ const LandingPage = () => {
               <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
                 1
               </span>
-              Busca el producto o la tienda que te interesa.
+              Busca lo que te hace falta, por tienda o por provincia.
             </li>
             <li className="flex gap-3">
               <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
                 2
               </span>
-              Toca “Pedir” y se abre WhatsApp con el mensaje listo.
+              Toca “Pedir” y se abre WhatsApp con el mensaje ya listo.
             </li>
             <li className="flex gap-3">
               <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
                 3
               </span>
-              Acuerda con el vendedor la entrega y el pago.
+              Cuadra con el vendedor la entrega y el pago, directo y sin
+              vueltas.
             </li>
           </ol>
         </Card>
@@ -939,14 +939,17 @@ const LandingPage = () => {
         {/* --- PRODUCTOS DESTACADOS --- */}
         {featured.length > 0 && (
           <div className="animate-fade-in-up">
-            <h2 className="font-bold text-white mb-3 text-base">
+            <h2 className="font-bold text-white mb-1 text-base">
               Destacados del mercado
             </h2>
+            <p className="text-xs text-gray-400 mb-3">
+              Lo que se está moviendo hoy en la isla
+            </p>
             <div className="grid grid-cols-2 gap-3">
               {featured.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => navigate(`/${p.store_slug}`)}
+                  onClick={() => setDetailProduct(p)}
                   className="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 text-left shadow-lg active:scale-95 transition-transform"
                 >
                   <div className="aspect-square bg-gray-900">
@@ -1028,15 +1031,15 @@ const LandingPage = () => {
         {/* --- VENDE TU TIENDA --- */}
         <Card className="p-6 border-t-4 border-emerald-600">
           <h2 className="font-bold text-white mb-1 text-lg">
-            Vende tu tienda
+            Pon tu tienda en toda Cuba
           </h2>
           <p className="text-sm text-gray-400 mb-4">
-            Pon tus productos frente a compradores de toda Cuba.
+            Tus productos frente a compradores de toda la isla.
           </p>
           <ul className="space-y-2 text-sm text-gray-300 mb-5">
             <li className="flex gap-2">
               <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-              Tu tienda con enlace propio para compartir
+              Tu tienda con su propio enlace, lista para compartir
             </li>
             <li className="flex gap-2">
               <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -1044,7 +1047,7 @@ const LandingPage = () => {
             </li>
             <li className="flex gap-2">
               <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-              Aparece en el mercado global y por provincia
+              Te ven en el mercado global y por provincia
             </li>
             <li className="flex gap-2">
               <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -1075,7 +1078,9 @@ const LandingPage = () => {
 
         {/* --- PIE --- */}
         <footer className="text-center space-y-2 pt-2 pb-4">
-          <p className="text-xs text-gray-500 font-bold">{APP_NAME}</p>
+          <p className="text-xs text-gray-500 font-bold">
+            {APP_NAME} — de cubanos para cubanos 🇨🇺
+          </p>
           {superAdminContact ? (
             <a
               href={licenseUrl}
@@ -1083,7 +1088,7 @@ const LandingPage = () => {
               rel="noreferrer"
               className="text-xs text-green-500 hover:text-green-400 font-bold inline-flex items-center gap-1"
             >
-              <MessageCircle size={12} /> Contacto por WhatsApp
+              <MessageCircle size={12} /> Escríbenos por WhatsApp
             </a>
           ) : (
             <p className="text-xs text-gray-600">Cargando contacto...</p>
@@ -1094,6 +1099,12 @@ const LandingPage = () => {
         <ManualModal
           onClose={() => setShowManual(false)}
           contact={superAdminContact}
+        />
+      )}
+      {detailProduct && (
+        <ProductDetailModal
+          product={detailProduct}
+          onClose={() => setDetailProduct(null)}
         />
       )}
     </div>
@@ -1107,6 +1118,13 @@ const StoreFrontend = () => {
   const [loadingStore, setLoadingStore] = useState(true);
   const [storeError, setStoreError] = useState(false);
   const [filter, setFilter] = useState("");
+  const [detailProduct, setDetailProduct] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(12);
+
+  // Al cambiar de tienda o de búsqueda, se vuelve a mostrar desde arriba.
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [slug, filter]);
 
   useEffect(() => {
     setLoadingStore(true);
@@ -1171,9 +1189,17 @@ const StoreFrontend = () => {
   const provinceName = store.province_name || store.province || "";
 
   const contact = (p) => {
-    const prices = `${p.price_cup > 0 ? p.price_cup + " CUP" : ""} ${p.price_usd > 0 ? p.price_usd + " USD" : ""}`;
     window.open(
-      `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Hola, me interesa: ${p.name} (${prices})`)}`,
+      waLink(
+        store.whatsapp,
+        orderMessage({
+          name: p.name,
+          prices: priceLabel(p),
+          storeName: store.name,
+          province: provinceName,
+          slug: store.slug,
+        }),
+      ),
       "_blank",
     );
   };
@@ -1216,13 +1242,21 @@ const StoreFrontend = () => {
                 <MapPin size={12} /> {provinceName}
               </p>
             )}
+            {store.whatsapp && (
+              <p className="text-xs text-gray-500">
+                WhatsApp: {formatPhone(store.whatsapp)}
+              </p>
+            )}
           </Card>
         </div>
       )}
       {store.whatsapp && (
         <div className="px-4 pt-3">
           <a
-            href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Hola, vi tu tienda ${store.name} en Mercado Cuba`)}`}
+            href={waLink(
+              store.whatsapp,
+              `Hola, vi tu tienda ${store.name} en Mercado Cuba: https://mercado-cuba.pages.dev/${store.slug}`,
+            )}
             target="_blank"
             rel="noreferrer"
             className="w-full bg-green-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-green-500 transition-all flex items-center justify-center gap-2"
@@ -1244,16 +1278,17 @@ const StoreFrontend = () => {
           <ShoppingBag size={48} className="mx-auto mb-4 text-gray-600" />
           <p className="text-sm text-gray-400">
             {filter
-              ? "Ningún producto coincide con tu búsqueda."
-              : "Esta tienda aún no tiene productos visibles."}
+              ? "No encontramos eso por aquí, prueba con otra palabra."
+              : "Esta tienda todavía no tiene productos a la venta."}
           </p>
         </div>
       )}
       <div className="px-4 pb-4 grid grid-cols-2 gap-3">
-        {filtered.map((p) => (
+        {filtered.slice(0, visibleCount).map((p) => (
           <div
             key={p.id}
-            className="bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 flex flex-col"
+            onClick={() => setDetailProduct(p)}
+            className="bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
           >
             <ImageGallery imagesStr={p.image_url} />
             <div className="p-3 flex-1 flex flex-col">
@@ -1264,17 +1299,20 @@ const StoreFrontend = () => {
                 <div className="flex flex-wrap gap-1 items-baseline">
                   {Number(p.price_cup) > 0 && (
                     <span className="font-black text-white text-sm">
-                      {p.price_cup} CUP
+                      {formatPrice(p.price_cup, "CUP")}
                     </span>
                   )}
                   {Number(p.price_usd) > 0 && (
                     <span className="font-bold text-emerald-400 text-xs bg-emerald-900/30 px-1.5 py-0.5 rounded ml-auto">
-                      {p.price_usd} USD
+                      {formatPrice(p.price_usd, "USD")}
                     </span>
                   )}
                 </div>
                 <button
-                  onClick={() => contact(p)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    contact(p);
+                  }}
                   className="w-full mt-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
                 >
                   <MessageCircle size={14} /> Pedir
@@ -1284,6 +1322,29 @@ const StoreFrontend = () => {
           </div>
         ))}
       </div>
+      {filtered.length > 0 && (
+        <div className="px-4 pb-4 text-center space-y-3">
+          <p className="text-xs text-gray-500">
+            Mostrando {Math.min(visibleCount, filtered.length)} de{" "}
+            {filtered.length} productos
+          </p>
+          {visibleCount < filtered.length && (
+            <button
+              onClick={() => setVisibleCount((c) => c + 12)}
+              className="bg-gray-800 text-gray-200 px-6 py-3 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all"
+            >
+              Cargar más
+            </button>
+          )}
+        </div>
+      )}
+      {detailProduct && (
+        <ProductDetailModal
+          product={detailProduct}
+          store={store}
+          onClose={() => setDetailProduct(null)}
+        />
+      )}
     </div>
   );
 };
@@ -1346,9 +1407,9 @@ const AuthScreen = ({ mode }) => {
                 ¿Qué incluye la licencia?
               </h3>
               <ul className="text-xs text-gray-300 space-y-1 list-disc pl-4">
-                <li>Tu tienda con enlace propio para compartir</li>
-                <li>Pedidos directos por WhatsApp</li>
-                <li>Aparece en el mercado global y por provincia</li>
+                <li>Tu tienda con su propio enlace, lista para compartir</li>
+                <li>Pedidos directos por WhatsApp, sin intermediarios</li>
+                <li>Te ven en el mercado global y por provincia</li>
               </ul>
               <p className="text-xs text-gray-400 mt-2">
                 Precio y duración: consúltalos por WhatsApp. Necesitas el
@@ -1413,7 +1474,7 @@ const AuthScreen = ({ mode }) => {
             {currMode === "register" &&
               (superAdminContact ? (
                 <a
-                  href={`https://wa.me/${superAdminContact}?text=${encodeURIComponent("Necesito código")}`}
+                  href={waLink(superAdminContact, "Necesito código")}
                   target="_blank"
                   rel="noreferrer"
                   className="text-green-500 text-sm block w-full hover:text-green-400 flex justify-center gap-1 items-center"
@@ -1643,7 +1704,7 @@ const VendorDashboard = () => {
                     {p.name}
                   </h4>
                   <p className="text-xs text-emerald-400 font-mono mt-1">
-                    {p.price_cup} CUP / {p.price_usd} USD
+                    {priceLabel(p)}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2">
@@ -2033,7 +2094,7 @@ const SuperAdminPanel = () => {
                       {s.name}
                     </h4>
                     <p className="text-xs text-gray-500 mb-2">
-                      {s.owner_name} • {s.whatsapp} •{" "}
+                      {s.owner_name} • {formatPhone(s.whatsapp)} •{" "}
                       {s.created_at.split("T")[0]}
                     </p>
 
@@ -2192,7 +2253,8 @@ const NotFoundPage = () => {
           Página no encontrada
         </h2>
         <p className="text-sm text-gray-400">
-          La dirección que buscaste no existe.
+          Esa dirección no existe por aquí. Revisa el enlace o vuelve al
+          inicio.
         </p>
         <Button onClick={() => navigate("/")} className="w-full">
           Volver al inicio
