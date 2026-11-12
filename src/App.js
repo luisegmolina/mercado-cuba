@@ -23,6 +23,7 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  Link,
   Navigate,
   useNavigate,
   useParams,
@@ -1096,6 +1097,14 @@ const LandingPage = () => {
           ) : (
             <p className="text-xs text-gray-600">Cargando contacto...</p>
           )}
+          <p>
+            <Link
+              to="/admin/login"
+              className="text-xs text-gray-600 hover:text-gray-400"
+            >
+              Acceso administrador
+            </Link>
+          </p>
         </footer>
       </div>
       {showManual && (
