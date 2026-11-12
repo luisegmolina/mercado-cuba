@@ -418,7 +418,9 @@ const GlobalMarketplace = () => {
       {!loading && loadError !== "products" && filtered.length > 0 && (
         <div className="px-4 mt-6 text-center space-y-3 max-w-5xl mx-auto">
           <p className="text-xs text-slate-500">
-            Mostrando {filtered.length} productos
+            {filterText
+              ? `Mostrando ${filtered.length} de ${products.length} cargados`
+              : `Mostrando ${filtered.length} productos`}
           </p>
           {hasMore && (
             <button

@@ -816,6 +816,9 @@ const LandingPage = () => {
   const [productsTotal, setProductsTotal] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
   const [covers, setCovers] = useState({});
+  // Buscador y "Cargar más" de tiendas (12 por tanda).
+  const [storeQuery, setStoreQuery] = useState("");
+  const [storesVisible, setStoresVisible] = useState(12);
 
   const loadLandingData = async () => {
     setStoresError(false);
@@ -864,6 +867,17 @@ const LandingPage = () => {
 
   const storeSlug = (s) =>
     s.slug || (s.name || "").toLowerCase().trim().replace(/\s+/g, "-");
+
+  // Tiendas filtradas por el buscador (nombre, provincia o slug).
+  const storeQueryNorm = storeQuery.trim().toLowerCase();
+  const filteredStores = stores.filter(
+    (s) =>
+      !storeQueryNorm ||
+      (s.name || "").toLowerCase().includes(storeQueryNorm) ||
+      (s.province_name || "").toLowerCase().includes(storeQueryNorm) ||
+      storeSlug(s).includes(storeQueryNorm),
+  );
+  const visibleStores = filteredStores.slice(0, storesVisible);
 
   const licenseUrl = superAdminContact
     ? waLink(superAdminContact, "Hola, solicito una licencia")
@@ -1314,8 +1328,24 @@ const LandingPage = () => {
                 </p>
               </div>
             </div>
+            <div className="relative mb-3">
+              <Search
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+              />
+              <input
+                type="text"
+                placeholder="Buscar tienda por nombre o provincia..."
+                value={storeQuery}
+                onChange={(e) => {
+                  setStoreQuery(e.target.value);
+                  setStoresVisible(12);
+                }}
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+              />
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {stores.slice(0, 12).map((s) => {
+              {visibleStores.map((s) => {
                 const cover = covers[storeSlug(s)] || CUBA_HERO;
                 return (
                   <button
@@ -1344,6 +1374,27 @@ const LandingPage = () => {
                 );
               })}
             </div>
+            {filteredStores.length === 0 && (
+              <p className="text-sm text-slate-500 text-center py-8">
+                No hay tiendas que coincidan con la búsqueda.
+              </p>
+            )}
+            {filteredStores.length > 0 && (
+              <div className="text-center mt-4 space-y-3">
+                <p className="text-xs text-slate-500">
+                  Mostrando {visibleStores.length} de {filteredStores.length}{" "}
+                  tiendas
+                </p>
+                {storesVisible < filteredStores.length && (
+                  <button
+                    onClick={() => setStoresVisible((c) => c + 12)}
+                    className="bg-white text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
+                  >
+                    Cargar más
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1824,6 +1875,9 @@ const VendorDashboard = () => {
   const [modal, setModal] = useState(false);
   const [editP, setEditP] = useState(null);
   const [formP, setFormP] = useState({});
+  // Buscador y paginación de mis productos (10 por página).
+  const [prodQuery, setProdQuery] = useState("");
+  const [prodPage, setProdPage] = useState(1);
 
   const [formS, setFormS] = useState({
     name: myStore?.name || "",
@@ -1880,6 +1934,28 @@ const VendorDashboard = () => {
     await saveProduct(formP, !!editP);
     setModal(false);
   };
+
+  // --- Buscador y paginación de mis productos ---
+  const PRODUCTS_PER_PAGE = 10;
+  const prodQueryNorm = prodQuery.trim().toLowerCase();
+  const filteredProducts = (Array.isArray(myProducts)
+    ? myProducts
+    : []
+  ).filter(
+    (p) =>
+      !prodQueryNorm ||
+      (p.name || "").toLowerCase().includes(prodQueryNorm) ||
+      (p.category || "").toLowerCase().includes(prodQueryNorm),
+  );
+  const prodTotalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE),
+  );
+  const prodPageSafe = Math.min(prodPage, prodTotalPages);
+  const prodPageProducts = filteredProducts.slice(
+    (prodPageSafe - 1) * PRODUCTS_PER_PAGE,
+    prodPageSafe * PRODUCTS_PER_PAGE,
+  );
 
   // Comprime una imagen con canvas: máx. 900 px en el lado mayor,
   // JPEG calidad 0.75. Una foto de teléfono de 2-4 MB queda en
@@ -1995,7 +2071,28 @@ const VendorDashboard = () => {
               </div>
             )}
             {/* --- FIN DE TARJETA --- */}
-            {myProducts.map((p) => (
+            <div className="relative">
+              <Search
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+              />
+              <input
+                type="text"
+                placeholder="Buscar mis productos por nombre o categoría..."
+                value={prodQuery}
+                onChange={(e) => {
+                  setProdQuery(e.target.value);
+                  setProdPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+              />
+            </div>
+            <p className="text-xs text-slate-500">
+              {filteredProducts.length} productos
+              {filteredProducts.length > 0 &&
+                ` · mostrando ${(prodPageSafe - 1) * PRODUCTS_PER_PAGE + 1}–${Math.min(prodPageSafe * PRODUCTS_PER_PAGE, filteredProducts.length)}`}
+            </p>
+            {prodPageProducts.map((p) => (
               <div
                 key={p.id}
                 className={`bg-white p-3 rounded-2xl border border-slate-200 flex gap-3 items-center ${!p.is_visible && "opacity-50"}`}
@@ -2038,6 +2135,34 @@ const VendorDashboard = () => {
                 </div>
               </div>
             ))}
+            {filteredProducts.length === 0 && (
+              <p className="text-sm text-slate-500 text-center py-8">
+                {prodQuery
+                  ? "No hay productos que coincidan con la búsqueda."
+                  : "Todavía no tienes productos. Toca + para agregar el primero."}
+              </p>
+            )}
+            {prodTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  disabled={prodPageSafe <= 1}
+                  onClick={() => setProdPage(prodPageSafe - 1)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} /> Anterior
+                </button>
+                <span className="text-xs text-slate-500 font-bold">
+                  Página {prodPageSafe} de {prodTotalPages}
+                </span>
+                <button
+                  disabled={prodPageSafe >= prodTotalPages}
+                  onClick={() => setProdPage(prodPageSafe + 1)}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold disabled:opacity-40"
+                >
+                  Siguiente <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <Card className="p-5 space-y-4">
