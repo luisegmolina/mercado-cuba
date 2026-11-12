@@ -10,6 +10,11 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
+// Foto de Cuba para el hero y como fondo por defecto de las tiendas:
+// La Habana desde el Malecón (Wikimedia Commons, licencia libre).
+export const CUBA_HERO =
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Havana_view.jpg/960px-Havana_view.jpg";
+
 // --- TELÉFONOS ---
 // Normaliza un número a dígitos con código de país:
 // Cuba (8 dígitos) -> "53" + número; EEUU (10 dígitos) -> "1" + número;
@@ -90,6 +95,15 @@ export const parseImages = (imgStr) => {
   }
 };
 
+// Primera foto de una lista de productos: se usa como fondo de la tienda.
+export const firstProductImage = (list) => {
+  for (const p of Array.isArray(list) ? list : []) {
+    const imgs = parseImages(p.image_url);
+    if (imgs.length) return imgs[0];
+  }
+  return "";
+};
+
 export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) => {
   const [error, setError] = useState(false);
   useEffect(() => setError(false), [src]);
@@ -97,7 +111,7 @@ export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) =>
   if (!src || error) {
     return (
       <div
-        className={`bg-slate-800 flex items-center justify-center border border-white/5 ${className}`}
+        className={`bg-sky-100 flex items-center justify-center border border-sky-100 ${className}`}
       >
         <Icon className="text-slate-600 opacity-50" size="40%" />
       </div>
@@ -144,16 +158,16 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-[70] bg-sky-950/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
       onClick={onClose}
     >
       <div className="min-h-full flex items-start sm:items-center justify-center sm:p-4">
         <div
-          className="bg-[#0F172A] w-full max-w-md sm:rounded-[2rem] overflow-hidden ring-1 ring-white/10 shadow-2xl my-0 sm:my-8"
+          className="bg-white w-full max-w-md sm:rounded-[2rem] overflow-hidden ring-1 ring-slate-200 shadow-2xl my-0 sm:my-8"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Galería */}
-          <div className="relative bg-slate-900">
+          <div className="relative bg-sky-50">
             <div className="aspect-square overflow-hidden">
               <SafeImage
                 src={imgs[idx]}
@@ -162,7 +176,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
             </div>
             <button
               onClick={onClose}
-              className="absolute top-2 left-2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 backdrop-blur"
+              className="absolute top-2 left-2 bg-black/60 text-white p-2 rounded-full hover:bg-sky-950/60 backdrop-blur"
               aria-label="Cerrar"
             >
               <X size={18} />
@@ -171,14 +185,14 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               <>
                 <button
                   onClick={prev}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 backdrop-blur"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-sky-950/60 backdrop-blur"
                   aria-label="Foto anterior"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
                   onClick={next}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 backdrop-blur"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-sky-950/60 backdrop-blur"
                   aria-label="Foto siguiente"
                 >
                   <ChevronRight size={20} />
@@ -190,15 +204,15 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
             )}
           </div>
           {imgs.length > 1 && (
-            <div className="flex gap-2 p-3 overflow-x-auto bg-slate-900">
+            <div className="flex gap-2 p-3 overflow-x-auto bg-sky-50">
               {imgs.map((src, i) => (
                 <button
                   key={i}
                   onClick={() => setIdx(i)}
                   className={`w-16 h-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
                     i === idx
-                      ? "border-sky-400 ring-2 ring-sky-400/30"
-                      : "border-white/10"
+                      ? "border-cyan-500 ring-2 ring-cyan-500/30"
+                      : "border-slate-200"
                   }`}
                 >
                   <SafeImage
@@ -212,14 +226,14 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
 
           {/* Datos del producto */}
           <div className="p-5 space-y-2">
-            <h2 className="font-display text-xl font-extrabold text-white leading-snug">
+            <h2 className="font-display text-xl font-extrabold text-slate-900 leading-snug">
               {product.name}
             </h2>
-            <p className="text-lg font-black bg-gradient-to-r from-sky-400 to-emerald-300 bg-clip-text text-transparent">
+            <p className="text-lg font-black bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
               {priceLabel(product)}
             </p>
             {product.category && (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Categoría: {product.category}
               </p>
             )}
@@ -228,8 +242,8 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                 <span
                   className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full ${
                     Number(stock) === 0
-                      ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                      : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                      ? "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                      : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
                   }`}
                 >
                   {Number(stock) === 0
@@ -241,7 +255,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               </p>
             )}
             {product.description && (
-              <p className="text-sm text-slate-300 leading-relaxed">
+              <p className="text-sm text-slate-600 leading-relaxed">
                 {product.description}
               </p>
             )}
@@ -282,7 +296,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                     onClose();
                     navigate(`/${storeSlug}`);
                   }}
-                  className="w-full bg-white/[0.06] border border-white/10 text-white py-3 rounded-2xl text-sm font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-sky-50 border border-slate-200 text-slate-900 py-3 rounded-2xl text-sm font-bold hover:bg-sky-100 transition-all flex items-center justify-center gap-2"
                 >
                   <Store size={16} /> Ver tienda
                 </button>

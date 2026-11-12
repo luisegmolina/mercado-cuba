@@ -17,6 +17,8 @@ import {
   priceLabel,
   orderMessage,
   ProductDetailModal,
+  CUBA_HERO,
+  firstProductImage,
 } from "./shared";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
@@ -153,8 +155,8 @@ const ToastProvider = ({ children }) => {
             key={t.id}
             className={`pointer-events-auto p-4 rounded-xl shadow-2xl flex items-center gap-3 border transition-all animate-bounce-in ${
               t.type === "success"
-                ? "bg-gray-800 border-green-500 text-green-400"
-                : "bg-gray-800 border-red-500 text-red-400"
+                ? "bg-white border-emerald-500 text-emerald-600"
+                : "bg-white border-rose-400 text-rose-600"
             }`}
           >
             {t.type === "success" ? (
@@ -165,7 +167,7 @@ const ToastProvider = ({ children }) => {
             <span className="text-sm font-medium">{t.message}</span>
             <button
               onClick={() => removeToast(t.id)}
-              className="ml-auto text-gray-500 hover:text-white"
+              className="ml-auto text-slate-500 hover:text-slate-800"
             >
               <X size={16} />
             </button>
@@ -179,9 +181,9 @@ const useToast = () => useContext(ToastContext);
 
 /** * --- COMPONENTES UI GLOBALES --- */
 const LoadingOverlay = () => (
-  <div className="fixed inset-0 bg-gray-900/90 z-[999] flex flex-col items-center justify-center backdrop-blur-sm">
-    <Loader2 className="animate-spin text-blue-500" size={40} />
-    <p className="text-blue-500 mt-4 font-bold animate-pulse uppercase tracking-widest text-xs">
+  <div className="fixed inset-0 bg-white/90 z-[999] flex flex-col items-center justify-center backdrop-blur-sm">
+    <Loader2 className="animate-spin text-cyan-600" size={40} />
+    <p className="text-cyan-600 mt-4 font-bold animate-pulse uppercase tracking-widest text-xs">
       Cargando datos...
     </p>
   </div>
@@ -622,7 +624,7 @@ const AppProvider = ({ children }) => {
 const Button = ({ children, onClick, className = "", ...props }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-3.5 rounded-2xl font-bold active:scale-95 flex items-center justify-center gap-2 shadow-glow text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 transition-all ${className}`}
+    className={`px-4 py-3.5 rounded-2xl font-bold active:scale-95 flex items-center justify-center gap-2 shadow-glow text-sm bg-gradient-to-r from-cyan-600 to-sky-600 text-white hover:from-cyan-500 hover:to-sky-500 transition-all ${className}`}
     {...props}
   >
     {children}
@@ -631,11 +633,11 @@ const Button = ({ children, onClick, className = "", ...props }) => (
 
 const Input = ({ label, ...props }) => (
   <div className="mb-4">
-    <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1 uppercase tracking-wider">
+    <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">
       {label}
     </label>
     <input
-      className="w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-white/[0.04] text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition-all placeholder:text-slate-500"
+      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500"
       {...props}
     />
   </div>
@@ -643,7 +645,7 @@ const Input = ({ label, ...props }) => (
 
 const Card = ({ children, className = "" }) => (
   <div
-    className={`bg-white/[0.04] rounded-3xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm ${className}`}
+    className={`bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden backdrop-blur-sm ${className}`}
   >
     {children}
   </div>
@@ -654,12 +656,12 @@ const ImageGallery = ({ imagesStr }) => {
   const [idx, setIdx] = useState(0);
   if (imgs.length === 0)
     return (
-      <div className="aspect-square bg-slate-800 flex items-center justify-center border-b border-white/5">
+      <div className="aspect-square bg-sky-100 flex items-center justify-center border-b border-sky-100">
         <ImageIcon size={48} className="text-slate-700" />
       </div>
     );
   return (
-    <div className="relative group bg-slate-900">
+    <div className="relative group bg-sky-50">
       <div className="aspect-square overflow-hidden">
         <SafeImage
           src={imgs[idx]}
@@ -675,7 +677,7 @@ const ImageGallery = ({ imagesStr }) => {
                 e.stopPropagation();
                 setIdx(i);
               }}
-              className={`w-2 h-2 rounded-full shadow-lg transition-all ${i === idx ? "bg-blue-500 w-6" : "bg-white/50 hover:bg-white"}`}
+              className={`w-2 h-2 rounded-full shadow-lg transition-all ${i === idx ? "bg-cyan-500 w-6" : "bg-white/50 hover:bg-white"}`}
             />
           ))}
         </div>
@@ -688,30 +690,30 @@ const ImageGallery = ({ imagesStr }) => {
 // --- COMPONENTE DEL MANUAL ---
 // Componente Manual - Alineado a la Izquierda
 const ManualModal = ({ onClose, contact }) => (
-  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-    <div className="bg-[#0F172A] w-full max-w-2xl max-h-[85vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/10">
+  <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-sky-950/60 backdrop-blur-sm animate-fade-in">
+    <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col ring-1 ring-slate-200">
       {/* Cabecera */}
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900">
-        <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
-          <BookOpen className="text-sky-400" /> Manual de Vendedor
+      <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-sky-50">
+        <h2 className="font-display text-xl font-bold text-slate-900 flex items-center gap-2">
+          <BookOpen className="text-cyan-700" /> Manual de Vendedor
         </h2>
         <button
           onClick={onClose}
-          className="p-2 bg-white/[0.06] rounded-full text-slate-400 hover:text-white"
+          className="p-2 bg-sky-50 rounded-full text-slate-500 hover:text-slate-800"
         >
           <X size={20} />
         </button>
       </div>
 
       {/* Contenido - Alineado a la Izquierda */}
-      <div className="p-6 overflow-y-auto space-y-6 text-gray-300 leading-relaxed text-left">
+      <div className="p-6 overflow-y-auto space-y-6 text-slate-600 leading-relaxed text-left">
         {" "}
         {/* <--- text-left */}
         <section>
-          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
             🔐 1. Registro
           </h3>
-          <ul className="list-disc pl-5 space-y-1 text-sm marker:text-blue-500">
+          <ul className="list-disc pl-5 space-y-1 text-sm marker:text-cyan-600">
             <li>
               Pide tu <strong>Código de Licencia</strong> al administrador.
             </li>
@@ -723,20 +725,20 @@ const ManualModal = ({ onClose, contact }) => (
               Usa tu número de WhatsApp real (sin el +), ahí te llegarán los
               pedidos.
             </li>
-            <li className="text-yellow-500/90 font-medium pt-1">
+            <li className="text-amber-600 font-medium pt-1">
               Si no tienes código de licencia contacta al:{" "}
               {formatPhone(contact) || contact}
             </li>
           </ul>
         </section>
         <section>
-          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
             ⚙️ 2. Configuración Inicial
           </h3>
-          <p className="text-sm mb-2 text-gray-400">
+          <p className="text-sm mb-2 text-slate-500">
             Ve a la pestaña <strong>Ajustes</strong> (⚙️) abajo a la derecha:
           </p>
-          <ul className="list-disc pl-5 space-y-2 text-sm marker:text-blue-500">
+          <ul className="list-disc pl-5 space-y-2 text-sm marker:text-cyan-600">
             <li>
               <strong>Ubicación:</strong> Selecciona tu Provincia (¡Vital para
               que te encuentren!).
@@ -751,18 +753,18 @@ const ManualModal = ({ onClose, contact }) => (
           </ul>
         </section>
         <section>
-          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
             📸 3. Subir Productos
           </h3>
-          <p className="text-sm mb-2 text-gray-400">
+          <p className="text-sm mb-2 text-slate-500">
             Ve a la pestaña <strong>Productos</strong> (田):
           </p>
-          <ul className="list-disc pl-5 space-y-1 text-sm marker:text-blue-500">
+          <ul className="list-disc pl-5 space-y-1 text-sm marker:text-cyan-600">
             <li>
               Toca el botón <strong>(+) Azul</strong>.
             </li>
             <li>Pon nombre, precio (CUP/USD) y fotos.</li>
-            <li className="text-green-400 font-bold">
+            <li className="text-emerald-600 font-bold">
               ¡Listo! Ya está visible en la vista general.
             </li>
             <li>Recuerda que puedes editar o eliminar productos cuando quieras.</li>
@@ -770,10 +772,10 @@ const ManualModal = ({ onClose, contact }) => (
           </ul>
         </section>
         <section>
-          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+          <h3 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
             🚀 4. Recibir Pedidos
           </h3>
-          <div className="bg-blue-900/10 p-4 rounded-l-md border-l-4 border-blue-500 text-sm">
+          <div className="bg-sky-50 p-4 rounded-l-md border-l-4 border-cyan-500 text-sm">
             <p>
               Cuando un cliente toca <strong>"PEDIR"</strong>, se abrirá tu
               WhatsApp automáticamente con el mensaje del producto. Tú cierras
@@ -784,16 +786,16 @@ const ManualModal = ({ onClose, contact }) => (
       </div>
 
       {/* Pie del Manual */}
-      <div className="p-4 border-t border-white/10 bg-slate-900 flex flex-col gap-3">
+      <div className="p-4 border-t border-slate-200 bg-sky-50 flex flex-col gap-3">
         <p className="text-xs text-center text-slate-500">
           Soporte Técnico:{" "}
-          <span className="text-slate-300 font-bold">
+          <span className="text-slate-600 font-bold">
             {formatPhone(contact) || contact}
           </span>
         </p>
         <button
           onClick={onClose}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-2xl font-bold w-full hover:from-blue-500 hover:to-indigo-500 transition-colors shadow-glow"
+          className="bg-gradient-to-r from-cyan-600 to-sky-600 text-white px-8 py-3 rounded-2xl font-bold w-full hover:from-cyan-500 hover:to-sky-500 transition-colors shadow-glow"
         >
           ¡Entendido, quiero empezar!
         </button>
@@ -812,6 +814,7 @@ const LandingPage = () => {
   const [featured, setFeatured] = useState([]);
   const [productsTotal, setProductsTotal] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
+  const [covers, setCovers] = useState({});
 
   const loadLandingData = async () => {
     setStoresError(false);
@@ -831,6 +834,16 @@ const LandingPage = () => {
       const list = Array.isArray(data) ? data : [];
       setFeatured(pickFeatured(list));
       setProductsTotal(list.length >= 100 ? "100+" : String(list.length));
+      // Portada de cada tienda: la foto de su primer producto.
+      const coverMap = {};
+      for (const p of list) {
+        const slug = (p.store_slug || "").toLowerCase().trim();
+        if (slug && !coverMap[slug]) {
+          const imgs = parseImages(p.image_url);
+          if (imgs.length) coverMap[slug] = imgs[0];
+        }
+      }
+      setCovers(coverMap);
     } catch (e) {
       setFeatured([]);
       setProductsTotal(null);
@@ -856,95 +869,85 @@ const LandingPage = () => {
     : "";
 
   return (
-    <div className="min-h-screen bg-[#070B14] relative overflow-hidden">
-      {/* Glows decorativos */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_at_top,rgba(37,99,235,0.35),transparent_60%)]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-32 top-72 h-80 w-80 rounded-full bg-rose-600/20 blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -left-32 top-[1100px] h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl"
-      />
-      <div className="relative w-full max-w-5xl mx-auto px-4 pt-10 pb-10 space-y-12 sm:space-y-16">
-        {/* --- HERO --- */}
-        <div className="text-center animate-fade-in">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-bold text-sky-300 backdrop-blur">
+    <div className="min-h-screen bg-[#F2FBFC]">
+      {/* --- HERO con foto de La Habana --- */}
+      <div className="relative overflow-hidden">
+        <img
+          src={CUBA_HERO}
+          alt="La Habana desde el Malecón, Cuba"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-sky-950/75 via-sky-900/45 to-[#F2FBFC]" />
+        <div className="relative w-full max-w-5xl mx-auto px-4 pt-9 pb-16 text-center animate-fade-in">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/15 px-4 py-1.5 text-xs font-bold text-white backdrop-blur">
             <Sparkles size={14} className="text-amber-300" /> El marketplace
             de Cuba
           </div>
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 rounded-[2rem] mx-auto flex items-center justify-center mt-7 mb-6 shadow-glow animate-float ring-1 ring-white/20">
-            <ShoppingBag className="text-white" size={46} />
-          </div>
-          <h1 className="font-display text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.05]">
+          <h1 className="font-display text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.05] mt-6">
             Mercado{" "}
             <span className="text-gradient-cuba animate-gradient-x">Cuba</span>
           </h1>
           <p className="text-xl sm:text-2xl text-white font-bold mt-3">
             Compra y vende en toda Cuba 🇨🇺
           </p>
-          <p className="text-base text-slate-300 mt-4 leading-relaxed max-w-xl mx-auto">
+          <p className="text-base text-sky-50 mt-4 leading-relaxed max-w-xl mx-auto">
             Todo en un solo lugar: precios en CUP y USD, y pides directo al
             vendedor por WhatsApp. Sin intermediarios, sin vueltas.
           </p>
-          <div className="h-1.5 w-28 mx-auto mt-6 rounded-full bg-gradient-to-r from-blue-600 via-white to-red-600" />
-          <p className="text-sm text-slate-300 font-bold mt-5">
+          <p className="text-sm text-white font-bold mt-5">
             {stores.length > 0 || productsTotal !== null
               ? `${stores.length} tiendas · ${productsTotal ?? "…"} productos`
               : "Cargando el mercado..."}
           </p>
-        </div>
-
-        {/* --- ACCIONES PRINCIPALES --- */}
-        <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
-          <button
-            onClick={() => navigate("/explorar")}
-            className="sm:col-span-2 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-2xl text-sm font-bold hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center justify-center gap-2 shadow-glow"
-          >
-            <Grid size={18} /> Explorar Todo el Mercado
-          </button>
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full bg-white/[0.04] text-slate-200 py-3.5 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2 backdrop-blur"
-          >
-            <User size={18} /> Soy Vendedor (Entrar)
-          </button>
-          <button
-            onClick={() => setShowManual(true)}
-            className="w-full bg-white/[0.04] text-slate-200 py-3.5 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2 backdrop-blur"
-          >
-            <FileText size={18} /> ¿Cómo funciona? (Guía)
-          </button>
-          {superAdminContact ? (
-            <a
-              href={licenseUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="sm:col-span-2 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-4 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green"
-            >
-              <MessageCircle size={18} /> Solicitar Licencia
-            </a>
-          ) : (
+          {/* --- ACCIONES PRINCIPALES --- */}
+          <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto mt-7 text-left">
             <button
-              disabled
-              className="sm:col-span-2 w-full bg-emerald-600/10 text-emerald-500/50 py-4 rounded-2xl text-sm font-bold border border-emerald-600/20 flex items-center justify-center gap-2"
+              onClick={() => navigate("/explorar")}
+              className="sm:col-span-2 w-full bg-white text-sky-800 py-4 rounded-2xl text-base font-extrabold hover:bg-sky-50 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
             >
-              <MessageCircle size={18} /> Cargando contacto...
+              <Grid size={20} /> Explorar Todo el Mercado
             </button>
-          )}
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full bg-white/15 text-white py-3.5 rounded-2xl text-sm font-bold border border-white/50 hover:bg-white/25 transition-all flex items-center justify-center gap-2 backdrop-blur active:scale-[0.98]"
+            >
+              <User size={18} /> Soy Vendedor (Entrar)
+            </button>
+            <button
+              onClick={() => setShowManual(true)}
+              className="w-full bg-white/15 text-white py-3.5 rounded-2xl text-sm font-bold border border-white/50 hover:bg-white/25 transition-all flex items-center justify-center gap-2 backdrop-blur active:scale-[0.98]"
+            >
+              <FileText size={18} /> ¿Cómo funciona? (Guía)
+            </button>
+            {superAdminContact ? (
+              <a
+                href={licenseUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="sm:col-span-2 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-4 rounded-2xl text-base font-extrabold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green active:scale-[0.98]"
+              >
+                <MessageCircle size={20} /> Solicitar Licencia
+              </a>
+            ) : (
+              <button
+                disabled
+                className="sm:col-span-2 w-full bg-white/10 text-white/60 py-4 rounded-2xl text-sm font-bold border border-white/20 flex items-center justify-center gap-2"
+              >
+                <MessageCircle size={18} /> Cargando contacto...
+              </button>
+            )}
+          </div>
         </div>
+      </div>
+      <div className="w-full max-w-5xl mx-auto px-4 py-10 space-y-10 sm:space-y-14">
 
         {/* --- ¿POR QUÉ USAR MERCADO CUBA? --- */}
         <div className="animate-fade-in-up">
           <div className="text-center mb-6">
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               ¿Por qué usar Mercado Cuba?
             </h2>
-            <p className="text-sm text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
+            <p className="text-sm text-slate-500 mt-2 max-w-lg mx-auto leading-relaxed">
               El mercado entero en tu bolsillo: para comprar sin vueltas y
               para vender en toda la isla.
             </p>
@@ -953,68 +956,68 @@ const LandingPage = () => {
             {/* Para comprar */}
             <Card className="p-6">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-glow shrink-0">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-600 to-sky-600 flex items-center justify-center shadow-glow shrink-0">
                   <ShoppingBag className="text-white" size={22} />
                 </div>
                 <div>
-                  <h3 className="font-display text-lg font-bold text-white leading-tight">
+                  <h3 className="font-display text-lg font-bold text-slate-900 leading-tight">
                     Para comprar
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Encuentra lo que buscas, sin salir de aquí
                   </p>
                 </div>
               </div>
               <ul className="space-y-4">
                 <li className="flex gap-3">
-                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
-                    <Search size={17} className="text-sky-400" />
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-cyan-600/15 border border-cyan-500/20 flex items-center justify-center">
+                    <Search size={17} className="text-cyan-700" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Todo en un solo lugar
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Tiendas de todas las provincias en una sola pantalla.
                     </p>
                   </div>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
-                    <Wallet size={17} className="text-sky-400" />
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-cyan-600/15 border border-cyan-500/20 flex items-center justify-center">
+                    <Wallet size={17} className="text-cyan-700" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Precios claros en CUP y USD
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Ves el precio en las dos monedas antes de escribir.
                     </p>
                   </div>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
-                    <MessageCircle size={17} className="text-sky-400" />
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-cyan-600/15 border border-cyan-500/20 flex items-center justify-center">
+                    <MessageCircle size={17} className="text-cyan-700" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Pides directo por WhatsApp
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Hablas con el vendedor, sin intermediarios ni
                       comisiones.
                     </p>
                   </div>
                 </li>
                 <li className="flex gap-3">
-                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
-                    <ShieldCheck size={17} className="text-sky-400" />
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-cyan-600/15 border border-cyan-500/20 flex items-center justify-center">
+                    <ShieldCheck size={17} className="text-cyan-700" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Tú cuadras la entrega
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Acuerdas entrega y pago directo con la tienda.
                     </p>
                   </div>
@@ -1022,7 +1025,7 @@ const LandingPage = () => {
               </ul>
               <button
                 onClick={() => navigate("/explorar")}
-                className="mt-6 w-full bg-white/[0.06] text-white py-3.5 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                className="mt-6 w-full bg-sky-50 text-slate-900 py-3.5 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all flex items-center justify-center gap-2"
               >
                 Explorar el mercado <ArrowRight size={16} />
               </button>
@@ -1034,10 +1037,10 @@ const LandingPage = () => {
                   <Store className="text-white" size={22} />
                 </div>
                 <div>
-                  <h3 className="font-display text-lg font-bold text-white leading-tight">
+                  <h3 className="font-display text-lg font-bold text-slate-900 leading-tight">
                     Para vender
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-500">
                     Tu negocio visible en toda Cuba
                   </p>
                 </div>
@@ -1045,13 +1048,13 @@ const LandingPage = () => {
               <ul className="space-y-4">
                 <li className="flex gap-3">
                   <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                    <BadgeCheck size={17} className="text-emerald-400" />
+                    <BadgeCheck size={17} className="text-emerald-600" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Tu tienda con su propio enlace
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Una página solo para ti, lista para compartir en
                       WhatsApp y redes.
                     </p>
@@ -1059,13 +1062,13 @@ const LandingPage = () => {
                 </li>
                 <li className="flex gap-3">
                   <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                    <Globe size={17} className="text-emerald-400" />
+                    <Globe size={17} className="text-emerald-600" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Te ven en toda Cuba
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Apareces en el mercado y por provincia, no solo en tu
                       barrio.
                     </p>
@@ -1073,26 +1076,26 @@ const LandingPage = () => {
                 </li>
                 <li className="flex gap-3">
                   <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                    <Zap size={17} className="text-emerald-400" />
+                    <Zap size={17} className="text-emerald-600" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Pedidos directos a tu WhatsApp
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       El cliente te escribe con el producto ya elegido.
                     </p>
                   </div>
                 </li>
                 <li className="flex gap-3">
                   <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
-                    <CheckCircle size={17} className="text-emerald-400" />
+                    <CheckCircle size={17} className="text-emerald-600" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-bold text-slate-900">
                       Sin crear una web
                     </p>
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Sin programar nada: subes fotos y precios, y a vender.
                       Solo pagas una licencia.
                     </p>
@@ -1111,7 +1114,7 @@ const LandingPage = () => {
               ) : (
                 <button
                   disabled
-                  className="mt-6 w-full bg-emerald-600/40 text-white/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+                  className="mt-6 w-full bg-emerald-100 text-emerald-700/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
                 >
                   <MessageCircle size={18} /> Cargando contacto...
                 </button>
@@ -1122,37 +1125,37 @@ const LandingPage = () => {
 
         {/* --- CÓMO FUNCIONA --- */}
         <Card className="p-6 sm:p-8">
-          <h2 className="font-display text-xl sm:text-2xl font-extrabold text-white mb-1 text-center tracking-tight">
+          <h2 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 mb-1 text-center tracking-tight">
             ¿Cómo funciona?
           </h2>
-          <p className="text-sm text-slate-400 text-center mb-6">
+          <p className="text-sm text-slate-500 text-center mb-6">
             Comprar es así de simple
           </p>
-          <ol className="grid sm:grid-cols-3 gap-4 text-sm text-slate-300">
-            <li className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 text-center">
-              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
+          <ol className="grid sm:grid-cols-3 gap-4 text-sm text-slate-600">
+            <li className="rounded-2xl bg-sky-50 border border-sky-100 p-4 text-center">
+              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-cyan-600 to-sky-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
                 1
               </span>
-              <p className="font-bold text-white mt-3">Busca</p>
-              <p className="text-slate-400 mt-1">
+              <p className="font-bold text-slate-900 mt-3">Busca</p>
+              <p className="text-slate-500 mt-1">
                 Lo que te hace falta, por tienda o por provincia.
               </p>
             </li>
-            <li className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 text-center">
-              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
+            <li className="rounded-2xl bg-sky-50 border border-sky-100 p-4 text-center">
+              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-cyan-600 to-sky-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
                 2
               </span>
-              <p className="font-bold text-white mt-3">Pide</p>
-              <p className="text-slate-400 mt-1">
+              <p className="font-bold text-slate-900 mt-3">Pide</p>
+              <p className="text-slate-500 mt-1">
                 Toca “Pedir” y se abre WhatsApp con el mensaje ya listo.
               </p>
             </li>
-            <li className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 text-center">
-              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
+            <li className="rounded-2xl bg-sky-50 border border-sky-100 p-4 text-center">
+              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-cyan-600 to-sky-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
                 3
               </span>
-              <p className="font-bold text-white mt-3">Cuadra</p>
-              <p className="text-slate-400 mt-1">
+              <p className="font-bold text-slate-900 mt-3">Cuadra</p>
+              <p className="text-slate-500 mt-1">
                 Acuerda con el vendedor la entrega y el pago, directo y sin
                 vueltas.
               </p>
@@ -1165,16 +1168,16 @@ const LandingPage = () => {
           <div className="animate-fade-in-up">
             <div className="flex items-end justify-between gap-3 mb-1">
               <div>
-                <h2 className="font-display text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                <h2 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
                   Destacados del mercado
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Lo que se está moviendo hoy en la isla
                 </p>
               </div>
               <button
                 onClick={() => navigate("/explorar")}
-                className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 shrink-0"
+                className="text-xs font-bold text-cyan-700 hover:text-cyan-700 flex items-center gap-1 shrink-0"
               >
                 Ver todo <ArrowRight size={14} />
               </button>
@@ -1184,19 +1187,19 @@ const LandingPage = () => {
                 <button
                   key={p.id}
                   onClick={() => setDetailProduct(p)}
-                  className="group bg-white/[0.04] rounded-3xl overflow-hidden border border-white/10 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 active:scale-[0.98]"
+                  className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
                 >
-                  <div className="aspect-square bg-slate-900 overflow-hidden">
+                  <div className="aspect-square bg-sky-50 overflow-hidden">
                     <SafeImage
                       src={parseImages(p.image_url)[0]}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   </div>
                   <div className="p-3 sm:p-4">
-                    <p className="text-sm font-bold text-slate-100 line-clamp-2">
+                    <p className="text-sm font-bold text-slate-900 line-clamp-2">
                       {p.name}
                     </p>
-                    <p className="text-sm text-sky-400 font-black mt-1">
+                    <p className="text-sm text-cyan-700 font-black mt-1">
                       {priceLabel(p)}
                     </p>
                     {p.store_name && (
@@ -1214,84 +1217,63 @@ const LandingPage = () => {
 
         <div className="grid lg:grid-cols-2 gap-4 sm:gap-6 items-start">
         {/* --- BUSCAR TIENDA --- */}
-        <Card className="p-6 border-t-4 border-blue-600">
-          <h2 className="font-display font-bold text-white mb-4 flex gap-2 items-center text-lg tracking-tight">
-            <Store className="text-sky-400" size={20} /> Buscar Tienda
+        <Card className="p-6 border-t-4 border-cyan-600">
+          <h2 className="font-display font-bold text-slate-900 mb-4 flex gap-2 items-center text-lg tracking-tight">
+            <Store className="text-cyan-700" size={20} /> Buscar Tienda
           </h2>
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
-              className="flex-1 px-4 py-3 bg-white/[0.04] border border-white/10 text-white rounded-2xl text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all placeholder:text-slate-500"
+              className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-900 rounded-2xl text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
               placeholder="ej: modas-habana"
               value={input}
               onChange={(e) => setInput(e.target.value)}
             />
-            <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-2xl hover:from-blue-500 hover:to-indigo-500 transition-all shadow-glow">
+            <button className="bg-gradient-to-r from-cyan-600 to-sky-600 text-white p-3 rounded-2xl hover:from-cyan-500 hover:to-sky-500 transition-all shadow-glow">
               <ArrowRight size={20} />
             </button>
           </form>
-          {storesError ? (
+          <p className="text-xs text-slate-500 mt-3">
+            Escribe el nombre de la tienda y entra directo a ver sus
+            productos.
+          </p>
+          {storesError && (
             <div className="mt-4 text-center">
-              <p className="text-xs text-slate-400 mb-2">
+              <p className="text-xs text-slate-500 mb-2">
                 No se pudieron cargar las tiendas.
               </p>
               <button
                 onClick={loadLandingData}
-                className="text-xs text-sky-400 font-bold underline"
+                className="text-xs text-cyan-700 font-bold underline"
               >
                 Reintentar
               </button>
             </div>
-          ) : (
-            stores.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Tiendas en el mercado
-                </p>
-                <ul className="space-y-1">
-                  {stores.slice(0, 12).map((s) => (
-                    <li key={s.id}>
-                      <button
-                        onClick={() => navigate(`/${storeSlug(s)}`)}
-                        className="w-full text-left text-sm text-sky-400 hover:text-sky-300 font-bold py-1.5 flex items-center justify-between gap-2"
-                      >
-                        <span className="truncate">{s.name}</span>
-                        {s.province_name && (
-                          <span className="text-[11px] text-slate-500 font-normal shrink-0">
-                            {s.province_name}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
           )}
         </Card>
 
         {/* --- VENDE TU TIENDA --- */}
         <Card className="p-6 border-t-4 border-emerald-600">
-          <h2 className="font-display font-bold text-white mb-1 text-lg tracking-tight">
+          <h2 className="font-display font-bold text-slate-900 mb-1 text-lg tracking-tight">
             Pon tu tienda en toda Cuba
           </h2>
-          <p className="text-sm text-slate-400 mb-4">
+          <p className="text-sm text-slate-500 mb-4">
             Tus productos frente a compradores de toda la isla.
           </p>
-          <ul className="space-y-2 text-sm text-slate-300 mb-5">
+          <ul className="space-y-2 text-sm text-slate-600 mb-5">
             <li className="flex gap-2">
-              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
               Tu tienda con su propio enlace, lista para compartir
             </li>
             <li className="flex gap-2">
-              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
               Pedidos directos por WhatsApp, sin intermediarios
             </li>
             <li className="flex gap-2">
-              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
               Te ven en el mercado global y por provincia
             </li>
             <li className="flex gap-2">
-              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              <CheckCircle size={16} className="text-emerald-600 shrink-0 mt-0.5" />
               Sube tus productos con fotos y precios en CUP y USD
             </li>
           </ul>
@@ -1307,7 +1289,7 @@ const LandingPage = () => {
           ) : (
             <button
               disabled
-              className="w-full bg-emerald-600/40 text-white/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+              className="w-full bg-emerald-100 text-emerald-700/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
             >
               <MessageCircle size={18} /> Cargando contacto...
             </button>
@@ -1318,9 +1300,55 @@ const LandingPage = () => {
         </Card>
         </div>
 
+        {/* --- TIENDAS EN EL MERCADO (con foto de portada) --- */}
+        {stores.length > 0 && (
+          <div className="animate-fade-in-up">
+            <div className="flex items-end justify-between gap-3 mb-3">
+              <div>
+                <h2 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                  Tiendas en el mercado
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Toca una tienda para ver sus productos
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {stores.slice(0, 12).map((s) => {
+                const cover = covers[storeSlug(s)] || CUBA_HERO;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => navigate(`/${storeSlug(s)}`)}
+                    className="group relative rounded-3xl overflow-hidden aspect-[4/3] text-left shadow-card active:scale-[0.98] transition-all"
+                  >
+                    <img
+                      src={cover}
+                      alt={s.name}
+                      loading="lazy"
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-950/25 to-transparent" />
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <p className="text-sm font-bold text-white leading-tight line-clamp-2">
+                        {s.name}
+                      </p>
+                      {s.province_name && (
+                        <p className="text-[11px] text-sky-100 font-medium mt-0.5 flex items-center gap-1">
+                          <MapPin size={11} /> {s.province_name}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* --- PIE --- */}
-        <footer className="text-center space-y-2 pt-6 pb-4 border-t border-white/5">
-          <p className="text-xs text-gray-500 font-bold">
+        <footer className="text-center space-y-2 pt-6 pb-4 border-t border-sky-100">
+          <p className="text-xs text-slate-500 font-bold">
             {APP_NAME} — de cubanos para cubanos 🇨🇺
           </p>
           {superAdminContact ? (
@@ -1328,17 +1356,17 @@ const LandingPage = () => {
               href={licenseUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-xs text-green-500 hover:text-green-400 font-bold inline-flex items-center gap-1"
+              className="text-xs text-emerald-600 hover:text-emerald-600 font-bold inline-flex items-center gap-1"
             >
               <MessageCircle size={12} /> Escríbenos por WhatsApp
             </a>
           ) : (
-            <p className="text-xs text-gray-600">Cargando contacto...</p>
+            <p className="text-xs text-slate-400">Cargando contacto...</p>
           )}
           <p>
             <Link
               to="/admin/login"
-              className="text-xs text-gray-600 hover:text-gray-400"
+              className="text-xs text-slate-400 hover:text-slate-500"
             >
               Acceso administrador
             </Link>
@@ -1396,14 +1424,14 @@ const StoreFrontend = () => {
 
   if (loadingStore) {
     return (
-      <div className="min-h-screen bg-[#070B14] flex flex-col items-center justify-center gap-4 p-4 animate-fade-in">
-        <Loader2 className="animate-spin text-sky-400" size={40} />
-        <p className="text-slate-400 text-sm font-bold">Cargando tienda...</p>
+      <div className="min-h-screen bg-[#F2FBFC] flex flex-col items-center justify-center gap-4 p-4 animate-fade-in">
+        <Loader2 className="animate-spin text-cyan-700" size={40} />
+        <p className="text-slate-500 text-sm font-bold">Cargando tienda...</p>
         <div className="w-full max-w-md space-y-3 mt-4">
-          <div className="h-10 bg-white/[0.04] rounded-2xl animate-pulse" />
+          <div className="h-10 bg-white rounded-2xl animate-pulse" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="aspect-square bg-white/[0.04] rounded-2xl animate-pulse" />
-            <div className="aspect-square bg-white/[0.04] rounded-2xl animate-pulse" />
+            <div className="aspect-square bg-white rounded-2xl animate-pulse" />
+            <div className="aspect-square bg-white rounded-2xl animate-pulse" />
           </div>
         </div>
       </div>
@@ -1412,13 +1440,13 @@ const StoreFrontend = () => {
 
   if (storeError || !data || !data.store) {
     return (
-      <div className="min-h-screen bg-[#070B14] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#F2FBFC] flex items-center justify-center p-4">
         <Card className="p-8 max-w-sm w-full text-center space-y-4">
           <Store className="text-slate-600 mx-auto" size={48} />
-          <h2 className="font-display text-xl font-bold text-white">
+          <h2 className="font-display text-xl font-bold text-slate-900">
             Tienda no encontrada
           </h2>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-500">
             Esta tienda no existe o ya no está disponible.
           </p>
           <Button onClick={() => navigate("/")} className="w-full">
@@ -1437,6 +1465,7 @@ const StoreFrontend = () => {
     (p.name || "").toLowerCase().includes(filter.toLowerCase()),
   );
   const provinceName = store.province_name || store.province || "";
+  const coverImage = firstProductImage(visibleProducts) || CUBA_HERO;
 
   const contact = (p) => {
     window.open(
@@ -1455,45 +1484,72 @@ const StoreFrontend = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#070B14] pb-20">
-      <div className="sticky top-0 bg-[#070B14]/95 backdrop-blur-md z-30 px-4 py-3 border-b border-white/10 flex items-center gap-3 shadow-lg">
+    <div className="min-h-screen bg-[#F2FBFC] pb-20">
+      <div className="sticky top-0 bg-white/95 backdrop-blur-md z-30 px-4 py-3 border-b border-sky-100 flex items-center gap-3 shadow-sm">
         <button
           onClick={() => navigate("/")}
-          className="p-2 -ml-2 rounded-full hover:bg-gray-800 text-gray-400"
+          className="p-2 -ml-2 rounded-full hover:bg-sky-50 text-slate-500"
         >
           <ChevronLeft />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg truncate text-white">
+          <h1 className="font-display font-bold text-lg truncate text-slate-900">
             {store.name}
           </h1>
         </div>
-        <div className="w-10 h-10 rounded-full ring-2 ring-white/10 bg-slate-800 overflow-hidden">
-          <SafeImage
-            src={store.logo_url}
-            className="w-full h-full object-cover"
-            fallbackIcon={Store}
-          />
+        <button
+          onClick={() => navigate("/explorar")}
+          className="text-xs font-bold text-cyan-700 hover:text-cyan-600 shrink-0"
+        >
+          Mercado
+        </button>
+      </div>
+      {/* Portada de la tienda: foto de su primer producto */}
+      <div className="relative h-48 sm:h-60 overflow-hidden">
+        <img
+          src={coverImage}
+          alt={store.name}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-950/25 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-3">
+          <div className="w-14 h-14 rounded-2xl ring-2 ring-white/70 bg-white overflow-hidden shrink-0 shadow-lg">
+            <SafeImage
+              src={store.logo_url}
+              className="w-full h-full object-cover"
+              fallbackIcon={Store}
+            />
+          </div>
+          <div className="min-w-0">
+            <h2 className="font-display font-extrabold text-2xl text-white leading-tight truncate">
+              {store.name}
+            </h2>
+            {provinceName && (
+              <p className="text-xs text-sky-100 font-medium flex items-center gap-1 mt-0.5">
+                <MapPin size={12} /> {provinceName}
+              </p>
+            )}
+          </div>
         </div>
       </div>
       {(store.description || store.owner_name || provinceName) && (
         <div className="px-4 pt-4">
           <Card className="p-4 space-y-1">
             {store.description && (
-              <p className="text-sm text-gray-300">{store.description}</p>
+              <p className="text-sm text-slate-600">{store.description}</p>
             )}
             {store.owner_name && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-slate-500">
                 Dueño: {store.owner_name}
               </p>
             )}
             {provinceName && (
-              <p className="text-xs text-gray-500 flex items-center gap-1">
+              <p className="text-xs text-slate-500 flex items-center gap-1">
                 <MapPin size={12} /> {provinceName}
               </p>
             )}
             {store.whatsapp && (
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-slate-500">
                 WhatsApp: {formatPhone(store.whatsapp)}
               </p>
             )}
@@ -1517,7 +1573,7 @@ const StoreFrontend = () => {
       )}
       <div className="p-4">
         <input
-          className="w-full pl-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all placeholder:text-slate-500"
+          className="w-full pl-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
           placeholder="Buscar productos..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -1525,8 +1581,8 @@ const StoreFrontend = () => {
       </div>
       {filtered.length === 0 && (
         <div className="text-center py-16 px-6">
-          <ShoppingBag size={48} className="mx-auto mb-4 text-gray-600" />
-          <p className="text-sm text-gray-400">
+          <ShoppingBag size={48} className="mx-auto mb-4 text-slate-400" />
+          <p className="text-sm text-slate-500">
             {filter
               ? "No encontramos eso por aquí, prueba con otra palabra."
               : "Esta tienda todavía no tiene productos a la venta."}
@@ -1538,22 +1594,22 @@ const StoreFrontend = () => {
           <div
             key={p.id}
             onClick={() => setDetailProduct(p)}
-            className="group bg-white/[0.04] rounded-3xl overflow-hidden shadow-xl border border-white/10 flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 active:scale-[0.98]"
+            className="group bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
           >
             <ImageGallery imagesStr={p.image_url} />
             <div className="p-3 flex-1 flex flex-col">
-              <h3 className="text-sm font-bold text-slate-100 line-clamp-2 mb-2">
+              <h3 className="text-sm font-bold text-slate-900 line-clamp-2 mb-2">
                 {p.name}
               </h3>
               <div className="mt-auto flex flex-col gap-1.5">
                 <div className="flex flex-wrap gap-1 items-baseline">
                   {Number(p.price_cup) > 0 && (
-                    <span className="font-black text-white text-sm">
+                    <span className="font-black text-slate-900 text-sm">
                       {formatPrice(p.price_cup, "CUP")}
                     </span>
                   )}
                   {Number(p.price_usd) > 0 && (
-                    <span className="font-bold text-emerald-400 text-xs bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-lg ml-auto">
+                    <span className="font-bold text-emerald-600 text-xs bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-lg ml-auto">
                       {formatPrice(p.price_usd, "USD")}
                     </span>
                   )}
@@ -1563,7 +1619,7 @@ const StoreFrontend = () => {
                     e.stopPropagation();
                     contact(p);
                   }}
-                  className="w-full mt-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-glow"
+                  className="w-full mt-1 bg-gradient-to-r from-cyan-600 to-sky-600 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-glow"
                 >
                   <MessageCircle size={14} /> Pedir
                 </button>
@@ -1581,7 +1637,7 @@ const StoreFrontend = () => {
           {visibleCount < filtered.length && (
             <button
               onClick={() => setVisibleCount((c) => c + 12)}
-              className="bg-white/[0.04] text-slate-200 px-6 py-3 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all"
+              className="bg-white text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
             >
               Cargar más
             </button>
@@ -1635,16 +1691,16 @@ const AuthScreen = ({ mode }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <button
           onClick={() => navigate("/")}
-          className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+          className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ChevronLeft size={20} /> Volver
         </button>
         <Card className="p-8">
-          <h2 className="text-2xl font-bold text-white text-center mb-6 uppercase tracking-widest">
+          <h2 className="text-2xl font-bold text-slate-900 text-center mb-6 uppercase tracking-widest">
             {currMode === "login"
               ? "Bienvenido"
               : currMode === "register"
@@ -1652,16 +1708,16 @@ const AuthScreen = ({ mode }) => {
                 : "Admin"}
           </h2>
           {currMode === "register" && (
-            <div className="mb-5 p-4 bg-emerald-900/20 border border-emerald-600/30 rounded-xl">
-              <h3 className="text-sm font-bold text-emerald-400 mb-2">
+            <div className="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <h3 className="text-sm font-bold text-emerald-600 mb-2">
                 ¿Qué incluye la licencia?
               </h3>
-              <ul className="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <ul className="text-xs text-slate-600 space-y-1 list-disc pl-4">
                 <li>Tu tienda con su propio enlace, lista para compartir</li>
                 <li>Pedidos directos por WhatsApp, sin intermediarios</li>
                 <li>Te ven en el mercado global y por provincia</li>
               </ul>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-slate-500 mt-2">
                 Precio y duración: consúltalos por WhatsApp. Necesitas el
                 código de licencia para crear tu tienda.
               </p>
@@ -1716,7 +1772,7 @@ const AuthScreen = ({ mode }) => {
             {currMode === "login" && (
               <button
                 onClick={() => setCurrMode("register")}
-                className="text-blue-400 text-sm block w-full hover:text-blue-300"
+                className="text-cyan-700 text-sm block w-full hover:text-cyan-700"
               >
                 ¿Eres nuevo? Regístrate
               </button>
@@ -1727,19 +1783,19 @@ const AuthScreen = ({ mode }) => {
                   href={waLink(superAdminContact, "Necesito código")}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-green-500 text-sm block w-full hover:text-green-400 flex justify-center gap-1 items-center"
+                  className="text-emerald-600 text-sm block w-full hover:text-emerald-600 flex justify-center gap-1 items-center"
                 >
                   <MessageCircle size={14} /> Pedir licencia
                 </a>
               ) : (
-                <span className="text-green-500/50 text-sm block w-full flex justify-center gap-1 items-center">
+                <span className="text-emerald-600/50 text-sm block w-full flex justify-center gap-1 items-center">
                   <MessageCircle size={14} /> Cargando contacto...
                 </span>
               ))}
             {currMode !== "login" && (
               <button
                 onClick={() => setCurrMode("login")}
-                className="text-gray-400 text-sm hover:text-white"
+                className="text-slate-500 text-sm hover:text-slate-800"
               >
                 Volver al Login
               </button>
@@ -1883,9 +1939,9 @@ const VendorDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-24">
-      <div className="bg-gray-800 p-4 sticky top-0 z-20 border-b border-gray-700 flex justify-between items-center shadow-lg">
-        <h2 className="font-bold text-white text-lg truncate">
+    <div className="min-h-screen bg-[#F2FBFC] pb-24">
+      <div className="bg-white p-4 sticky top-0 z-20 border-b border-slate-200 flex justify-between items-center shadow-lg">
+        <h2 className="font-bold text-slate-900 text-lg truncate">
           {myStore?.name}
         </h2>
         <button
@@ -1893,7 +1949,7 @@ const VendorDashboard = () => {
             logout();
             navigate("/");
           }}
-          className="bg-red-900/20 text-red-400 p-3 rounded-xl hover:bg-red-600 transition-all"
+          className="bg-rose-100 text-rose-600 p-3 rounded-xl hover:bg-rose-600 transition-all"
         >
           <LogOut size={20} />
         </button>
@@ -1904,24 +1960,24 @@ const VendorDashboard = () => {
           <div className="space-y-4">
             {/* --- NUEVA TARJETA DE ENLACE COMPARTIBLE --- */}
             {myStore && (
-              <div className="mb-8 p-6 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl border border-blue-500/30 shadow-2xl flex flex-col items-center text-center gap-4">
+              <div className="mb-8 p-6 bg-gradient-to-br from-white to-sky-50 rounded-2xl border border-cyan-500/30 shadow-2xl flex flex-col items-center text-center gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-blue-600/10 rounded-xl">
-                    <Store className="text-blue-500" size={30} />
+                  <div className="p-2.5 bg-cyan-600/10 rounded-xl">
+                    <Store className="text-cyan-600" size={30} />
                   </div>
-                  <h1 className="text-white font-bold text-sm" size={18}>
+                  <h1 className="text-slate-900 font-bold text-sm" size={18}>
                     Tu tienda está lista
                   </h1>
                   <br></br>
                   <div>
-                    <p className="text-gray-400 text-[11px] uppercase tracking-wider font-medium">
+                    <p className="text-slate-500 text-[11px] uppercase tracking-wider font-medium">
                       Comparte este enlace con tus clientes
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-black/40 p-2 pl-4 rounded-xl border border-gray-700 w-full max-w-md">
-                  <span className="text-sm font-mono text-blue-400 truncate flex-1">
+                <div className="flex items-center gap-2 bg-sky-50 p-2 pl-4 rounded-xl border border-slate-200 w-full max-w-md">
+                  <span className="text-sm font-mono text-cyan-700 truncate flex-1">
                     {`${window.location.origin}/${myStore.slug || myStore.name.toLowerCase().trim().replace(/\s+/g, "-")}`}
                   </span>
                   <button
@@ -1930,7 +1986,7 @@ const VendorDashboard = () => {
                       navigator.clipboard.writeText(url);
                       notify("¡Enlace copiado!");
                     }}
-                    className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-lg transition-all active:scale-90"
+                    className="bg-cyan-600 hover:bg-cyan-500 text-white p-3 rounded-lg transition-all active:scale-90"
                   >
                     <Copy size={18} />
                   </button>
@@ -1941,26 +1997,26 @@ const VendorDashboard = () => {
             {myProducts.map((p) => (
               <div
                 key={p.id}
-                className={`bg-gray-800 p-3 rounded-2xl border border-gray-700 flex gap-3 items-center ${!p.is_visible && "opacity-50"}`}
+                className={`bg-white p-3 rounded-2xl border border-slate-200 flex gap-3 items-center ${!p.is_visible && "opacity-50"}`}
               >
-                <div className="w-16 h-16 bg-gray-900 rounded-xl overflow-hidden shrink-0 border border-gray-700">
+                <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shrink-0 border border-slate-200">
                   <SafeImage
                     src={parseImages(p.image_url)[0]}
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-gray-200 text-sm truncate">
+                  <h4 className="font-bold text-slate-800 text-sm truncate">
                     {p.name}
                   </h4>
-                  <p className="text-xs text-emerald-400 font-mono mt-1">
+                  <p className="text-xs text-emerald-600 font-mono mt-1">
                     {priceLabel(p)}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={() => openModal(p)}
-                    className="bg-gray-700 p-2 rounded-lg text-blue-400"
+                    className="bg-slate-100 p-2 rounded-lg text-cyan-700"
                   >
                     <Edit size={16} />
                   </button>
@@ -1968,13 +2024,13 @@ const VendorDashboard = () => {
                     onClick={() =>
                       saveProduct({ ...p, is_visible: !p.is_visible }, true)
                     }
-                    className="bg-gray-700 p-2 rounded-lg text-gray-400"
+                    className="bg-slate-100 p-2 rounded-lg text-slate-500"
                   >
                     {p.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
                   </button>
                   <button
                     onClick={() => deleteProduct(p.id)}
-                    className="bg-gray-700 p-2 rounded-lg text-red-400"
+                    className="bg-slate-100 p-2 rounded-lg text-rose-600"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -1996,11 +2052,11 @@ const VendorDashboard = () => {
               onChange={(e) => setFormS({ ...formS, whatsapp: e.target.value })}
             />
             <div>
-              <label className="block text-xs font-bold text-gray-400 mb-1.5 ml-1 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">
                 Descripción de la tienda
               </label>
               <textarea
-                className="w-full px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none focus:border-blue-500"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-cyan-500"
                 rows="3"
                 value={formS.description || ""}
                 onChange={(e) =>
@@ -2008,12 +2064,12 @@ const VendorDashboard = () => {
                 }
               />
             </div>
-            <div className="flex items-center gap-4 p-4 bg-gray-900 rounded-xl border border-gray-700">
+            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200">
               <SafeImage
                 src={formS.logoUrl}
                 className="w-16 h-16 rounded-full overflow-hidden"
               />
-              <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer text-xs font-bold uppercase">
+              <label className="bg-cyan-600 text-white px-4 py-2 rounded-lg cursor-pointer text-xs font-bold uppercase">
                 Subir Logo
                 <input
                   type="file"
@@ -2023,10 +2079,10 @@ const VendorDashboard = () => {
                 />
               </label>
             </div>
-            <div className="p-4 bg-gray-900/50 rounded-2xl border border-gray-700 flex items-center justify-between mb-4">
+            <div className="p-4 bg-sky-50 rounded-2xl border border-slate-200 flex items-center justify-between mb-4">
               <div>
-                <h4 className="text-sm font-bold text-white">Mercado Global</h4>
-                <p className="text-[10px] text-gray-500">
+                <h4 className="text-sm font-bold text-slate-900">Mercado Global</h4>
+                <p className="text-[10px] text-slate-500">
                   Aparecer en la búsqueda general del sistema?
                 </p>
               </div>
@@ -2039,18 +2095,18 @@ const VendorDashboard = () => {
                     setFormS({ ...formS, is_public_market: e.target.checked })
                   }
                 />
-                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-slate-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
               </label>
             </div>
 
             <select
-              className="w-full px-4 py-3.5 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none appearance-none"
+              className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none"
               value={formS.province_id || ""}
               onChange={(e) =>
                 setFormS({ ...formS, province_id: e.target.value })
               }
             >
-              <option value="" className="text-gray-500">
+              <option value="" className="text-slate-500">
                 Seleccionar Provincia...
               </option>
 
@@ -2072,17 +2128,17 @@ const VendorDashboard = () => {
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 flex justify-around p-2 pb-5 z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 pb-5 z-50">
         <button
           onClick={() => setTab("prod")}
-          className={`flex flex-col items-center p-2 rounded-2xl w-24 transition-all ${tab === "prod" ? "text-blue-400 bg-gray-700/50" : "text-gray-500"}`}
+          className={`flex flex-col items-center p-2 rounded-2xl w-24 transition-all ${tab === "prod" ? "text-cyan-700 bg-cyan-50" : "text-slate-500"}`}
         >
           <Grid size={24} />
           <span className="text-[10px] font-bold uppercase">Productos</span>
         </button>
         <button
           onClick={() => setTab("conf")}
-          className={`flex flex-col items-center p-2 rounded-2xl w-24 transition-all ${tab === "conf" ? "text-blue-400 bg-gray-700/50" : "text-gray-500"}`}
+          className={`flex flex-col items-center p-2 rounded-2xl w-24 transition-all ${tab === "conf" ? "text-cyan-700 bg-cyan-50" : "text-slate-500"}`}
         >
           <SettingsIcon size={24} />
           <span className="text-[10px] font-bold uppercase">Ajustes</span>
@@ -2092,21 +2148,21 @@ const VendorDashboard = () => {
       {tab === "prod" && (
         <button
           onClick={() => openModal(null)}
-          className="fixed bottom-24 right-4 bg-blue-600 text-white p-4 rounded-full shadow-2xl z-40 hover:scale-110 transition-transform"
+          className="fixed bottom-24 right-4 bg-cyan-600 text-white p-4 rounded-full shadow-2xl z-40 hover:scale-110 transition-transform"
         >
           <Plus size={28} />
         </button>
       )}
 
       {modal && (
-        <div className="fixed inset-0 bg-gray-900 z-[60] overflow-y-auto p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-white z-[60] overflow-y-auto p-4 animate-fade-in">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-xl text-white">
+            <h3 className="font-bold text-xl text-slate-900">
               {editP ? "Editar Producto" : "Nuevo Producto"}
             </h3>
             <button
               onClick={() => setModal(false)}
-              className="bg-gray-800 p-2 rounded-full text-gray-400"
+              className="bg-white p-2 rounded-full text-slate-500"
             >
               <X size={24} />
             </button>
@@ -2161,8 +2217,8 @@ const VendorDashboard = () => {
                 />
               </div>
             </div>
-            <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
-              <label className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer uppercase">
+            <div className="bg-white p-4 rounded-xl border border-slate-200">
+              <label className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer uppercase">
                 Añadir Fotos{" "}
                 <input
                   type="file"
@@ -2176,7 +2232,7 @@ const VendorDashboard = () => {
                 {formP.images?.map((url, i) => (
                   <div
                     key={i}
-                    className="aspect-square bg-black rounded-xl overflow-hidden relative"
+                    className="aspect-square bg-sky-50 rounded-xl overflow-hidden relative"
                   >
                     <SafeImage
                       src={url}
@@ -2190,7 +2246,7 @@ const VendorDashboard = () => {
                           images: p.images.filter((_, idx) => idx !== i),
                         }))
                       }
-                      className="absolute top-1 right-1 bg-red-600 rounded-full p-1 text-white"
+                      className="absolute top-1 right-1 bg-rose-600 rounded-full p-1 text-white"
                     >
                       <X size={10} />
                     </button>
@@ -2245,9 +2301,9 @@ const SuperAdminPanel = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-20">
-      <nav className="bg-gray-800 p-4 sticky top-0 z-20 flex justify-between shadow-lg border-b border-gray-700">
-        <h2 className="font-bold text-white tracking-widest uppercase">
+    <div className="min-h-screen bg-[#F2FBFC] pb-20">
+      <nav className="bg-white p-4 sticky top-0 z-20 flex justify-between shadow-lg border-b border-slate-200">
+        <h2 className="font-bold text-slate-900 tracking-widest uppercase">
           Master Panel
         </h2>
         <button
@@ -2256,24 +2312,24 @@ const SuperAdminPanel = () => {
             navigate("/");
           }}
         >
-          <LogOut className="text-red-400" />
+          <LogOut className="text-rose-600" />
         </button>
       </nav>
       <div className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <Card className="p-4 border-l-4 border-blue-500">
-            <div className="text-xs text-gray-400 font-bold uppercase">
+          <Card className="p-4 border-l-4 border-cyan-500">
+            <div className="text-xs text-slate-500 font-bold uppercase">
               Tiendas
             </div>
-            <div className="text-3xl text-white font-black">
+            <div className="text-3xl text-slate-900 font-black">
               {stats.total_stores}
             </div>
           </Card>
           <Card className="p-4 border-l-4 border-emerald-500">
-            <div className="text-xs text-gray-400 font-bold uppercase">
+            <div className="text-xs text-slate-500 font-bold uppercase">
               Licencias
             </div>
-            <div className="text-3xl text-white font-black">
+            <div className="text-3xl text-slate-900 font-black">
               {stats.available_licenses}
             </div>
           </Card>
@@ -2284,7 +2340,7 @@ const SuperAdminPanel = () => {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-full text-xs font-bold uppercase transition-all ${tab === t ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 border border-gray-700"}`}
+              className={`px-5 py-2 rounded-full text-xs font-bold uppercase transition-all ${tab === t ? "bg-cyan-600 text-white" : "bg-white text-slate-500 border border-slate-200"}`}
             >
               {t === "stores"
                 ? "Tiendas"
@@ -2304,14 +2360,14 @@ const SuperAdminPanel = () => {
               {codes.map((c) => (
                 <div
                   key={c.id}
-                  className="flex justify-between items-center p-3 bg-gray-900 rounded-lg border border-gray-700"
+                  className="flex justify-between items-center p-3 bg-white rounded-lg border border-slate-200"
                 >
-                  <span className="font-mono text-gray-300 font-bold">
+                  <span className="font-mono text-slate-600 font-bold">
                     {c.code}
                   </span>
                   <button
                     onClick={() => deleteCode(c.id)}
-                    className="text-red-400 hover:scale-110"
+                    className="text-rose-600 hover:scale-110"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -2335,22 +2391,22 @@ const SuperAdminPanel = () => {
                   key={s.id}
                   className={`p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all ${
                     s.is_suspended
-                      ? "border-l-4 border-red-500 bg-red-900/5"
-                      : "border-l-4 border-blue-500"
+                      ? "border-l-4 border-rose-400 bg-rose-50"
+                      : "border-l-4 border-cyan-500"
                   }`}
                 >
                   <div className="flex-1 min-w-0 w-full">
-                    <h4 className="font-bold text-gray-200 text-lg">
+                    <h4 className="font-bold text-slate-800 text-lg">
                       {s.name}
                     </h4>
-                    <p className="text-xs text-gray-500 mb-2">
+                    <p className="text-xs text-slate-500 mb-2">
                       {s.owner_name} • {formatPhone(s.whatsapp)} •{" "}
                       {s.created_at.split("T")[0]}
                     </p>
 
                     {/* Contenedor de la URL y botón de copiar */}
-                    <div className="flex items-center gap-2 bg-gray-900/80 p-2 rounded-xl border border-gray-700 w-full sm:w-fit group">
-                      <span className="text-[11px] text-blue-400 font-mono truncate max-w-[200px] sm:max-w-xs">
+                    <div className="flex items-center gap-2 bg-sky-50 p-2 rounded-xl border border-slate-200 w-full sm:w-fit group">
+                      <span className="text-[11px] text-cyan-700 font-mono truncate max-w-[200px] sm:max-w-xs">
                         {storeUrl}
                       </span>
                       <button
@@ -2358,7 +2414,7 @@ const SuperAdminPanel = () => {
                           navigator.clipboard.writeText(storeUrl);
                           notify("¡Enlace copiado!");
                         }}
-                        className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-all active:scale-90"
+                        className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition-all active:scale-90"
                         title="Copiar ruta de la tienda"
                       >
                         <Copy size={14} />
@@ -2372,13 +2428,13 @@ const SuperAdminPanel = () => {
                         setSelStore(s);
                         setEditWhatsapp(s.whatsapp);
                       }}
-                      className="p-2.5 bg-blue-900/20 text-blue-400 rounded-xl hover:bg-blue-900/40 transition-colors"
+                      className="p-2.5 bg-cyan-600/10 text-cyan-700 rounded-xl hover:bg-cyan-600/20 transition-colors"
                     >
                       <Info size={18} />
                     </button>
                     <button
                       onClick={() => toggleStore(s.id, s.is_suspended)}
-                      className="p-2.5 bg-gray-800 rounded-xl text-gray-400 hover:text-white transition-colors border border-gray-700"
+                      className="p-2.5 bg-white rounded-xl text-slate-500 hover:text-slate-800 transition-colors border border-slate-200"
                     >
                       {s.is_suspended ? (
                         <CheckCircle size={18} />
@@ -2388,7 +2444,7 @@ const SuperAdminPanel = () => {
                     </button>
                     <button
                       onClick={() => deleteStore(s.id)}
-                      className="p-2.5 bg-red-900/20 text-red-400 rounded-xl hover:bg-red-900/40 transition-colors"
+                      className="p-2.5 bg-rose-100 text-rose-600 rounded-xl hover:bg-red-900/40 transition-colors"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -2402,7 +2458,7 @@ const SuperAdminPanel = () => {
         {tab === "sec" && (
           <div className="space-y-4">
             <Card className="p-5">
-              <h3 className="text-white font-bold mb-4 uppercase text-sm">
+              <h3 className="text-slate-900 font-bold mb-4 uppercase text-sm">
                 Cambiar Clave Maestra
               </h3>
               <Input
@@ -2422,7 +2478,7 @@ const SuperAdminPanel = () => {
               </Button>
             </Card>
             <Card className="p-5">
-              <h3 className="text-white font-bold mb-4 uppercase text-sm">
+              <h3 className="text-slate-900 font-bold mb-4 uppercase text-sm">
                 WhatsApp de Soporte
               </h3>
               <Input
@@ -2441,15 +2497,15 @@ const SuperAdminPanel = () => {
       </div>
 
       {selStore && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-sky-950/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <Card className="w-full max-w-md p-6 relative animate-zoom-in">
             <button
               onClick={() => setSelStore(null)}
-              className="absolute top-4 right-4 text-gray-400"
+              className="absolute top-4 right-4 text-slate-500"
             >
               <X />
             </button>
-            <h3 className="text-xl font-black text-white mb-6 uppercase tracking-widest">
+            <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-widest">
               {selStore.name}
             </h3>
             <Input
@@ -2464,8 +2520,8 @@ const SuperAdminPanel = () => {
               Guardar Contacto
             </Button>
 
-            <div className="bg-red-900/20 p-4 rounded-xl border border-red-900/40">
-              <h4 className="text-red-400 font-bold text-xs mb-3 uppercase tracking-widest">
+            <div className="bg-rose-100 p-4 rounded-xl border border-rose-200">
+              <h4 className="text-rose-600 font-bold text-xs mb-3 uppercase tracking-widest">
                 Zona de Seguridad
               </h4>
               <Input
@@ -2474,7 +2530,7 @@ const SuperAdminPanel = () => {
                 value={resetP}
                 onChange={(e) => setResetP(e.target.value)}
               />
-              <Button onClick={handleStoreReset} className="w-full bg-red-600">
+              <Button onClick={handleStoreReset} className="w-full bg-rose-600">
                 Cambiar Password
               </Button>
             </div>
@@ -2497,12 +2553,12 @@ const ScrollToTop = () => {
 const NotFoundPage = () => {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <Card className="p-8 max-w-sm w-full text-center space-y-4">
-        <h2 className="text-2xl font-black text-white">
+        <h2 className="text-2xl font-black text-slate-900">
           Página no encontrada
         </h2>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-slate-500">
           Esa dirección no existe por aquí. Revisa el enlace o vuelve al
           inicio.
         </p>

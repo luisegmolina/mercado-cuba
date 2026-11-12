@@ -140,9 +140,9 @@ const GlobalMarketplace = () => {
   // --- VISTA DE CARGA INICIAL (Solo carga provincias) ---
   if (initialLoading) {
     return (
-      <div className="min-h-screen bg-[#070B14] flex flex-col items-center justify-center gap-4">
-        <Loader2 className="animate-spin text-sky-400" size={40} />
-        <p className="text-slate-400 text-sm font-bold">
+      <div className="min-h-screen bg-[#F2FBFC] flex flex-col items-center justify-center gap-4">
+        <Loader2 className="animate-spin text-cyan-700" size={40} />
+        <p className="text-slate-500 text-sm font-bold">
           Cargando provincias...
         </p>
       </div>
@@ -152,23 +152,23 @@ const GlobalMarketplace = () => {
   // --- VISTA DE ERROR AL CARGAR PROVINCIAS ---
   if (loadError === "provinces" && !selectedProvince) {
     return (
-      <div className="min-h-screen bg-[#070B14] text-white p-6 flex flex-col items-center justify-center animate-fade-in">
-        <AlertCircle size={48} className="text-red-400 mb-4" />
+      <div className="min-h-screen bg-[#F2FBFC] text-slate-900 p-6 flex flex-col items-center justify-center animate-fade-in">
+        <AlertCircle size={48} className="text-rose-600 mb-4" />
         <h1 className="font-display text-xl font-bold mb-2">
           No se pudo cargar el mercado
         </h1>
-        <p className="text-slate-400 text-sm text-center mb-6">
+        <p className="text-slate-500 text-sm text-center mb-6">
           Revisa tu conexión e inténtalo de nuevo.
         </p>
         <button
           onClick={loadProvinces}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-glow"
+          className="bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-glow"
         >
           Reintentar
         </button>
         <button
           onClick={() => navigate("/")}
-          className="mt-6 text-slate-500 text-sm flex items-center gap-2 hover:text-white"
+          className="mt-6 text-slate-500 text-sm flex items-center gap-2 hover:text-slate-800"
         >
           <ChevronLeft size={16} /> Volver al inicio
         </button>
@@ -179,19 +179,19 @@ const GlobalMarketplace = () => {
   // --- VISTA 1: SELECTOR DE PROVINCIA (Si no ha elegido nada) ---
   if (!selectedProvince) {
     return (
-      <div className="min-h-screen bg-[#070B14] relative overflow-hidden text-white p-6 flex flex-col items-center justify-center animate-fade-in">
+      <div className="min-h-screen bg-[#F2FBFC] relative overflow-hidden text-slate-900 p-6 flex flex-col items-center justify-center animate-fade-in">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_at_top,rgba(37,99,235,0.3),transparent_60%)]"
         />
         <div className="relative mb-8 text-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-[1.75rem] flex items-center justify-center mx-auto mb-4 text-white shadow-glow ring-1 ring-white/20">
+          <div className="w-20 h-20 bg-gradient-to-br from-cyan-600 to-sky-600 rounded-[1.75rem] flex items-center justify-center mx-auto mb-4 text-white shadow-glow ring-1 ring-sky-300">
             <MapPin size={38} />
           </div>
           <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
             ¿Por dónde andas? 🇨🇺
           </h1>
-          <p className="text-slate-400">
+          <p className="text-slate-500">
             Elige tu provincia para ver lo que hay cerca de ti
           </p>
         </div>
@@ -201,7 +201,7 @@ const GlobalMarketplace = () => {
             onClick={() =>
               handleSelectProvince("all", "Todas las provincias")
             }
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95 shadow-glow"
+            className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white py-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95 shadow-glow"
           >
             <Globe size={18} /> Todas las provincias
           </button>
@@ -210,7 +210,7 @@ const GlobalMarketplace = () => {
               <button
                 key={prov.id}
                 onClick={() => handleSelectProvince(prov.id, prov.name)}
-                className="bg-white/[0.04] hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-white border border-white/10 text-slate-300 py-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95"
+                className="bg-white hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-slate-800 border border-slate-200 text-slate-600 py-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95"
               >
                 {prov.name}
               </button>
@@ -220,7 +220,7 @@ const GlobalMarketplace = () => {
 
         <button
           onClick={() => navigate("/")}
-          className="relative mt-12 text-slate-500 text-sm flex items-center gap-2 hover:text-white"
+          className="relative mt-12 text-slate-500 text-sm flex items-center gap-2 hover:text-slate-800"
         >
           <ChevronLeft size={16} /> Volver al inicio
         </button>
@@ -230,13 +230,13 @@ const GlobalMarketplace = () => {
 
   // --- VISTA 2: LISTADO DE PRODUCTOS (Si ya eligió) ---
   return (
-    <div className="min-h-screen bg-[#070B14] pb-20 text-white font-sans">
+    <div className="min-h-screen bg-[#F2FBFC] pb-20 text-slate-900 font-sans">
       {/* Header con botón para cambiar ubicación */}
-      <div className="sticky top-0 bg-[#070B14]/95 backdrop-blur-md z-30 px-4 py-3 border-b border-white/10 flex items-center justify-between shadow-2xl">
+      <div className="sticky top-0 bg-[#F2FBFC]/95 backdrop-blur-md z-30 px-4 py-3 border-b border-slate-200 flex items-center justify-between shadow-2xl">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/")}
-            className="p-2 -ml-2 rounded-full hover:bg-white/10 text-slate-400"
+            className="p-2 -ml-2 rounded-full hover:bg-sky-100 text-slate-500"
           >
             <ChevronLeft />
           </button>
@@ -246,7 +246,7 @@ const GlobalMarketplace = () => {
             </h1>
             <button
               onClick={handleBackToSelector}
-              className="text-xs text-sky-400 flex items-center gap-1 mt-1 font-bold hover:underline"
+              className="text-xs text-cyan-700 flex items-center gap-1 mt-1 font-bold hover:underline"
             >
               <MapPin size={10} /> {selectedProvince.name} (Cambiar)
             </button>
@@ -262,7 +262,7 @@ const GlobalMarketplace = () => {
             size={18}
           />
           <input
-            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-white/10 bg-white/[0.04] text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all placeholder:text-slate-500"
+            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
             placeholder={`Buscar en ${selectedProvince.name}...`}
             value={filterText}
             onChange={handleSearchChange}
@@ -273,20 +273,20 @@ const GlobalMarketplace = () => {
       {/* Loader de productos */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="animate-spin text-sky-400" size={32} />
-          <p className="text-slate-400 text-sm font-bold">
+          <Loader2 className="animate-spin text-cyan-700" size={32} />
+          <p className="text-slate-500 text-sm font-bold">
             Cargando productos...
           </p>
         </div>
       ) : loadError === "products" ? (
         <div className="text-center py-20 px-6">
-          <AlertCircle size={48} className="mx-auto mb-4 text-red-400" />
-          <p className="text-sm text-slate-300 mb-4">
+          <AlertCircle size={48} className="mx-auto mb-4 text-rose-600" />
+          <p className="text-sm text-slate-600 mb-4">
             No se pudieron cargar los productos.
           </p>
           <button
             onClick={() => loadProducts(selectedProvince, 0, false)}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-glow"
+            className="bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-glow"
           >
             Reintentar
           </button>
@@ -300,9 +300,9 @@ const GlobalMarketplace = () => {
               <div
                 key={p.id}
                 onClick={() => setDetailProduct(p)}
-                className="group bg-white/[0.04] rounded-3xl overflow-hidden border border-white/10 flex flex-col shadow-xl cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 active:scale-[0.98]"
+                className="group bg-white rounded-3xl overflow-hidden border border-slate-200 flex flex-col shadow-xl cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
               >
-                <div className="aspect-square bg-slate-900 relative overflow-hidden">
+                <div className="aspect-square bg-sky-50 relative overflow-hidden">
                   {mainImg ? (
                     <img
                       src={mainImg}
@@ -322,7 +322,7 @@ const GlobalMarketplace = () => {
                     }}
                     className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
                   >
-                    <Store size={10} className="text-sky-400 shrink-0" />
+                    <Store size={10} className="text-cyan-700 shrink-0" />
                     <span className="text-[11px] font-bold text-white">
                       {p.store_name}
                     </span>
@@ -330,18 +330,18 @@ const GlobalMarketplace = () => {
                 </div>
 
                 <div className="p-3 flex-1 flex flex-col gap-1">
-                  <h3 className="text-sm font-bold text-slate-100 line-clamp-2 min-h-10">
+                  <h3 className="text-sm font-bold text-slate-900 line-clamp-2 min-h-10">
                     {p.name}
                   </h3>
                   <div className="mt-auto pt-2">
                     <div className="flex flex-wrap gap-1 items-baseline mb-2">
                       {Number(p.price_cup) > 0 && (
-                        <span className="text-sky-400 font-black text-sm">
+                        <span className="text-cyan-700 font-black text-sm">
                           {formatPrice(p.price_cup, "CUP")}
                         </span>
                       )}
                       {Number(p.price_usd) > 0 && (
-                        <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-lg ml-auto">
+                        <span className="text-emerald-600 font-bold text-[10px] bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-lg ml-auto">
                           {formatPrice(p.price_usd, "USD")}
                         </span>
                       )}
@@ -367,7 +367,7 @@ const GlobalMarketplace = () => {
                           "_blank",
                         );
                       }}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-2.5 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 shadow-glow"
+                      className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 py-2.5 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 shadow-glow"
                     >
                       <MessageCircle size={12} /> Pedir
                     </button>
@@ -381,14 +381,14 @@ const GlobalMarketplace = () => {
 
       {!loading && loadError !== "products" && filtered.length === 0 && (
         <div className="text-center py-20 opacity-50 px-6">
-          <ShoppingBag size={48} className="mx-auto mb-4 text-gray-600" />
+          <ShoppingBag size={48} className="mx-auto mb-4 text-slate-400" />
           <p className="text-sm">
             {filterText ? (
               <>
                 No encontramos eso por aquí, prueba con otra palabra o{" "}
                 <button
                   onClick={handleBackToSelector}
-                  className="text-blue-400 underline"
+                  className="text-cyan-700 underline"
                 >
                   cambia de provincia
                 </button>
@@ -397,7 +397,7 @@ const GlobalMarketplace = () => {
             ) : (
               <>
                 No hay productos en{" "}
-                <span className="text-blue-400 font-bold">
+                <span className="text-cyan-700 font-bold">
                   {selectedProvince.name}
                 </span>
                 .
@@ -407,7 +407,7 @@ const GlobalMarketplace = () => {
           {!filterText && (
             <button
               onClick={handleBackToSelector}
-              className="mt-4 text-xs text-blue-400 underline"
+              className="mt-4 text-xs text-cyan-700 underline"
             >
               Cambiar provincia
             </button>
@@ -423,7 +423,7 @@ const GlobalMarketplace = () => {
           {hasMore && (
             <button
               onClick={handleLoadMore}
-              className="bg-white/[0.04] text-slate-200 px-6 py-3 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all"
+              className="bg-white text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
             >
               Cargar más
             </button>
