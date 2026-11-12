@@ -34,6 +34,7 @@ const GlobalMarketplace = () => {
   // Paginación: se cargan de 20 en 20 con "Cargar más".
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [totalProducts, setTotalProducts] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
 
   // Estado crucial: Si es null, mostramos el selector. Si tiene ID, mostramos productos.
@@ -70,21 +71,40 @@ const GlobalMarketplace = () => {
   // 2. Función para cargar productos cuando el usuario elige provincia.
   // append=false reemplaza la lista (cambio de provincia o de búsqueda);
   // append=true añade la siguiente página ("Cargar más").
-  const loadProducts = async (province, startOffset = 0, append = false) => {
+  // El backend devuelve { items, total } y acepta ?q= (búsqueda en el
+  // servidor con trigram), así la búsqueda ya no se limita a lo cargado.
+  const loadProducts = async (
+    province,
+    startOffset = 0,
+    append = false,
+    query = filterText,
+  ) => {
     setLoading(true);
     setLoadError(null);
     try {
+      const q = (query || "").trim();
+      const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
       const url =
         province.id === "all"
-          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}`
-          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}`;
+          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}`
+          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
-      if (!Array.isArray(data)) throw new Error("Respuesta inválida");
-      setProducts((prev) => (append ? [...prev, ...data] : data));
-      setHasMore(data.length >= PAGE_LIMIT);
-      setOffset(startOffset + data.length);
+      const items = Array.isArray(data) ? data : data.items || [];
+      const total = Array.isArray(data)
+        ? null
+        : typeof data.total === "number"
+          ? data.total
+          : null;
+      setProducts((prev) => (append ? [...prev, ...items] : items));
+      setTotalProducts(total);
+      setHasMore(
+        total !== null
+          ? startOffset + items.length < total
+          : items.length >= PAGE_LIMIT,
+      );
+      setOffset(startOffset + items.length);
     } catch (err) {
       console.error(err);
       if (!append) setProducts([]);
@@ -100,6 +120,7 @@ const GlobalMarketplace = () => {
     setFilterText("");
     setOffset(0);
     setHasMore(false);
+    setTotalProducts(null);
     setProducts([]);
     loadProducts(province, 0, false);
   };
@@ -111,6 +132,7 @@ const GlobalMarketplace = () => {
     setLoadError(null);
     setOffset(0);
     setHasMore(false);
+    setTotalProducts(null);
   };
 
   const handleLoadMore = () => {
@@ -120,13 +142,14 @@ const GlobalMarketplace = () => {
   };
 
   // La búsqueda filtra en local lo ya cargado y, con una pausa corta
-  // para no pedir a cada tecla, vuelve a cargar desde la primera página.
+  // para no pedir a cada tecla, vuelve a cargar desde la primera página
+  // (el servidor filtra por ?q= en toda la provincia, no solo lo cargado).
   const handleSearchChange = (e) => {
     const v = e.target.value;
     setFilterText(v);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      if (selectedProvince) loadProducts(selectedProvince, 0, false);
+      if (selectedProvince) loadProducts(selectedProvince, 0, false, v);
     }, 500);
   };
 
@@ -295,7 +318,7 @@ const GlobalMarketplace = () => {
         /* Grid */
         <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up max-w-5xl mx-auto w-full">
           {filtered.map((p) => {
-            const mainImg = parseImages(p.image_url)[0];
+            const mainImg = parseImages(p.images ?? p.image_url)[0];
             return (
               <div
                 key={p.id}
@@ -420,7 +443,9 @@ const GlobalMarketplace = () => {
           <p className="text-xs text-slate-500">
             {filterText
               ? `Mostrando ${filtered.length} de ${products.length} cargados`
-              : `Mostrando ${filtered.length} productos`}
+              : totalProducts !== null
+                ? `Mostrando ${filtered.length} de ${totalProducts} productos`
+                : `Mostrando ${filtered.length} productos`}
           </p>
           {hasMore && (
             <button

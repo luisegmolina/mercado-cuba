@@ -76,29 +76,38 @@ export const orderMessage = ({ name, prices, storeName, province, slug }) =>
 
 // --- IMÁGENES ---
 // Normaliza las imágenes que vienen del servidor para que siempre sean un Array manejable por React.
-export const parseImages = (imgStr) => {
-  if (!imgStr) return [];
-  if (Array.isArray(imgStr)) return imgStr;
-  try {
-    const parsed = JSON.parse(imgStr);
-    if (Array.isArray(parsed)) return parsed;
-    return [imgStr];
-  } catch (e) {
-    if (typeof imgStr === "string") {
-      if (imgStr.startsWith("data:image")) return [imgStr];
-      return imgStr
+// El backend nuevo devuelve `images` como array de URLs; se acepta también
+// el formato viejo (string JSON o URL suelta) por si algún dato viejo lo trae.
+// Las data: (base64) ya no existen en el esquema nuevo y se descartan.
+export const parseImages = (img) => {
+  if (!img) return [];
+  if (Array.isArray(img))
+    return img.filter(
+      (u) => typeof u === "string" && u.startsWith("http"),
+    );
+  if (typeof img === "string") {
+    if (img.startsWith("data:")) return [];
+    try {
+      const parsed = JSON.parse(img);
+      if (Array.isArray(parsed))
+        return parsed.filter(
+          (u) => typeof u === "string" && u.startsWith("http"),
+        );
+      return [img];
+    } catch (e) {
+      return img
         .split(",")
         .map((s) => s.trim())
-        .filter((s) => s);
+        .filter((s) => s.startsWith("http"));
     }
-    return [];
   }
+  return [];
 };
 
 // Primera foto de una lista de productos: se usa como fondo de la tienda.
 export const firstProductImage = (list) => {
   for (const p of Array.isArray(list) ? list : []) {
-    const imgs = parseImages(p.image_url);
+    const imgs = parseImages(p.images ?? p.image_url);
     if (imgs.length) return imgs[0];
   }
   return "";
@@ -133,7 +142,7 @@ export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) =>
 // todas sus fotos, precio, tienda y el botón de pedir.
 export const ProductDetailModal = ({ product, store, onClose }) => {
   const navigate = useNavigate();
-  const imgs = parseImages(product.image_url);
+  const imgs = parseImages(product.images ?? product.image_url);
   const [idx, setIdx] = useState(0);
 
   useEffect(() => setIdx(0), [product?.id]);
