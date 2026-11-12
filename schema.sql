@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS products (
     price_cup DECIMAL(12, 2) DEFAULT 0,
     price_usd DECIMAL(12, 2) DEFAULT 0,
     category VARCHAR(50),
+    description TEXT,
     image_url TEXT, -- URLs o data URIs (JSON) de las fotos
     stock INTEGER DEFAULT 1,
     is_visible BOOLEAN DEFAULT TRUE,

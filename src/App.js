@@ -66,6 +66,35 @@ import {
  * APP_NAME: Nombre comercial de la plataforma.
  */
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
+
+// Destacados: primero los que tienen foto, sin repetir el mismo
+// producto de la misma tienda, hasta 6. Los sin foto solo completan.
+// Fuera del componente a propósito: si vive dentro, el build de
+// Cloudflare (CI=true) lo toma como dependencia reactiva y el
+// useEffect de la landing falla con react-hooks/exhaustive-deps.
+const pickFeatured = (list) => {
+  const seen = new Set();
+  const key = (p) =>
+    `${(p.store_slug || p.store_name || "").toLowerCase()}|${(p.name || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ")}`;
+  const withPhoto = list.filter(
+    (p) => parseImages(p.image_url).length > 0,
+  );
+  const withoutPhoto = list.filter(
+    (p) => parseImages(p.image_url).length === 0,
+  );
+  const out = [];
+  for (const p of [...withPhoto, ...withoutPhoto]) {
+    const k = key(p);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(p);
+    if (out.length >= 6) break;
+  }
+  return out;
+};
 const APP_NAME = "Mercado Cuba";
 
 /** * --- UTILIDADES DE PROCESAMIENTO ---
@@ -775,32 +804,6 @@ const LandingPage = () => {
   const [featured, setFeatured] = useState([]);
   const [productsTotal, setProductsTotal] = useState(null);
   const [detailProduct, setDetailProduct] = useState(null);
-
-  // Destacados: primero los que tienen foto, sin repetir el mismo
-  // producto de la misma tienda, hasta 6. Los sin foto solo completan.
-  const pickFeatured = (list) => {
-    const seen = new Set();
-    const key = (p) =>
-      `${(p.store_slug || p.store_name || "").toLowerCase()}|${(p.name || "")
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, " ")}`;
-    const withPhoto = list.filter(
-      (p) => parseImages(p.image_url).length > 0,
-    );
-    const withoutPhoto = list.filter(
-      (p) => parseImages(p.image_url).length === 0,
-    );
-    const out = [];
-    for (const p of [...withPhoto, ...withoutPhoto]) {
-      const k = key(p);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push(p);
-      if (out.length >= 6) break;
-    }
-    return out;
-  };
 
   const loadLandingData = async () => {
     setStoresError(false);
