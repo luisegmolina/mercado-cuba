@@ -1,16 +1,24 @@
 -- ==================================================================
+-- ¡¡¡ PELIGRO: ESTE SCRIPT BORRA TODOS LOS DATOS !!!
+-- DROP TABLE de stores, products, activation_codes, provinces y
+-- admin_config. NO USAR EN PRODUCCIÓN. Solo para recrear la base
+-- de desarrollo desde cero con datos de ejemplo.
+-- ==================================================================
+
+-- ==================================================================
 -- 1. LIMPIEZA TOTAL (BORRÓN Y CUENTA NUEVA)
 -- ==================================================================
 DROP TABLE IF EXISTS activation_codes CASCADE;
 DROP TABLE IF EXISTS products CASCADE;
 DROP TABLE IF EXISTS stores CASCADE;
+DROP TABLE IF EXISTS provinces CASCADE;
 DROP TABLE IF EXISTS admin_config CASCADE;
 
 -- Habilitar extensión UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ==================================================================
--- 2. CREACIÓN DE TABLAS (ESQUEMA ACTUALIZADO)
+-- 2. CREACIÓN DE TABLAS (ESQUEMA CANÓNICO — igual que schema.sql)
 -- ==================================================================
 
 -- Configuración Admin (Seguridad)
@@ -18,6 +26,18 @@ CREATE TABLE admin_config (
     key VARCHAR(50) PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Provincias
+CREATE TABLE provinces (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) UNIQUE NOT NULL
+);
+
+INSERT INTO provinces (name) VALUES
+    ('Pinar del Río'), ('Artemisa'), ('La Habana'), ('Mayabeque'),
+    ('Matanzas'), ('Cienfuegos'), ('Villa Clara'), ('Sancti Spíritus'),
+    ('Ciego de Ávila'), ('Camagüey'), ('Las Tunas'), ('Holguín'),
+    ('Granma'), ('Santiago de Cuba'), ('Guantánamo'), ('Isla de la Juventud');
 
 -- Tiendas
 CREATE TABLE stores (
@@ -31,6 +51,8 @@ CREATE TABLE stores (
     password_hash VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE,
     is_suspended BOOLEAN DEFAULT FALSE,
+    is_public_market BOOLEAN DEFAULT FALSE,
+    province_id UUID REFERENCES provinces(id),
     whatsapp_clicks INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -55,38 +77,44 @@ CREATE TABLE activation_codes (
     code VARCHAR(50) UNIQUE NOT NULL,
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'used', 'expired')),
     generated_by VARCHAR(50) DEFAULT 'SUPERADMIN',
-    used_by_store_id UUID REFERENCES stores(id),
+    used_by_store_id UUID REFERENCES stores(id) ON DELETE SET NULL,
+    used_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Índices para velocidad
 CREATE INDEX idx_stores_slug ON stores(slug);
+CREATE INDEX idx_stores_province ON stores(province_id);
 CREATE INDEX idx_products_store ON products(store_id);
 CREATE INDEX idx_products_search ON products(name);
+CREATE INDEX idx_products_created ON products(created_at);
+CREATE INDEX idx_products_public ON products(store_id, is_visible);
+CREATE INDEX idx_stores_public ON stores(is_public_market, is_suspended);
 
 -- ==================================================================
--- 3. CARGA MASIVA DE DATOS (SEED)
+-- 3. CARGA MASIVA DE DATOS (SEED DE EJEMPLO)
 -- ==================================================================
 
--- ¡CORRECCIÓN!: NO insertamos el hash del admin aquí. 
+-- ¡CORRECCIÓN!: NO insertamos el hash del admin aquí.
 -- Dejamos que server.js lo genere al arrancar para asegurar que sea válido.
+-- Las tiendas de ejemplo quedan SIN contraseña (password_hash NULL):
+-- el admin debe asignarles una clave antes de usarlas.
 
 DO $$
 DECLARE
     -- Variables para guardar los IDs de las tiendas generadas
     s1 UUID; s2 UUID; s3 UUID; s4 UUID; s5 UUID;
     s6 UUID; s7 UUID; s8 UUID; s9 UUID; s10 UUID;
-    
-    -- Hash para contraseña de tiendas '123456'
-    pass_hash VARCHAR := '$2a$10$X7V.j/tJ.X7V.j/tJ.X7V.e';
+    habana_id UUID;
 BEGIN
+    SELECT id INTO habana_id FROM provinces WHERE name = 'La Habana';
 
     -- -------------------------------------------------------
     -- TIENDA 1: MODAS HABANA (Ropa)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('Modas Habana', 'modas-habana', 'La mejor ropa importada de Panamá y Europa. Vestidos, Jeans y Zapatos de marca.', '5351111111', 'Maria Gonzalez', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400', pass_hash, 120)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Modas Habana', 'modas-habana', 'La mejor ropa importada de Panamá y Europa. Vestidos, Jeans y Zapatos de marca.', '5351111111', 'Maria Gonzalez', 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400', 120, TRUE, habana_id)
     RETURNING id INTO s1;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -99,8 +127,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 2: TECNOIMPORT CUBA (Tecnología)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('TecnoImport Cuba', 'tecnoimport-cuba', 'Celulares sellados en caja, Laptops, Micas y Forros. Garantía de 1 mes.', '5352222222', 'Alejandro Perez', 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400', pass_hash, 340)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('TecnoImport Cuba', 'tecnoimport-cuba', 'Celulares sellados en caja, Laptops, Micas y Forros. Garantía de 1 mes.', '5352222222', 'Alejandro Perez', 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400', 340, TRUE, habana_id)
     RETURNING id INTO s2;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -114,8 +142,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 3: PALADAR DOÑA YUYA (Comida)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('Paladar Doña Yuya', 'paladar-dona-yuya', 'Comida criolla a domicilio. Combos para cumpleaños, cakes y buffet. Sabor 100% cubano.', '5353333333', 'Yuliet Rodriguez', 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400', pass_hash, 89)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Paladar Doña Yuya', 'paladar-dona-yuya', 'Comida criolla a domicilio. Combos para cumpleaños, cakes y buffet. Sabor 100% cubano.', '5353333333', 'Yuliet Rodriguez', 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400', 89, TRUE, habana_id)
     RETURNING id INTO s3;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -128,8 +156,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 4: FERRETERÍA EL TORNILLO (Hogar)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('Ferretería El Tornillo', 'ferreteria-el-tornillo', 'Materiales de construcción, herramientas, plomería y electricidad.', '5354444444', 'Roberto Chang', 'https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?w=400', pass_hash, 45)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Ferretería El Tornillo', 'ferreteria-el-tornillo', 'Materiales de construcción, herramientas, plomería y electricidad.', '5354444444', 'Roberto Chang', 'https://images.unsplash.com/photo-1581235720704-06d3acfcb36f?w=400', 45, TRUE, habana_id)
     RETURNING id INTO s4;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -141,8 +169,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 5: REGALOS Y FLORES (Varios)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('Detalles y Amor', 'detalles-y-amor', 'Arreglos florales, peluches y tazas personalizadas para toda ocasión.', '5355555555', 'Carmen Lopez', 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400', pass_hash, 210)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Detalles y Amor', 'detalles-y-amor', 'Arreglos florales, peluches y tazas personalizadas para toda ocasión.', '5355555555', 'Carmen Lopez', 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=400', 210, TRUE, habana_id)
     RETURNING id INTO s5;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -153,8 +181,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 6: AUTOPARTES VEDADO (Automotriz)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('AutoPartes Vedado', 'autopartes-vedado', 'Piezas de repuesto para Lada, Moskvitch y autos modernos. Baterías y Neumáticos.', '5356666666', 'Carlos Mecánico', 'https://images.unsplash.com/photo-1486262715619-01b80250e0dc?w=400', pass_hash, 60)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('AutoPartes Vedado', 'autopartes-vedado', 'Piezas de repuesto para Lada, Moskvitch y autos modernos. Baterías y Neumáticos.', '5356666666', 'Carlos Mecánico', 'https://images.unsplash.com/photo-1486262715619-01b80250e0dc?w=400', 60, TRUE, habana_id)
     RETURNING id INTO s6;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -165,8 +193,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 7: MUEBLES CUBANOS (Hogar)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('Muebles Cubanos', 'muebles-cubanos', 'Muebles de madera preciosa y aluminio. Juegos de sala y comedor.', '5357777777', 'Jose Ebanista', 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400', pass_hash, 95)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Muebles Cubanos', 'muebles-cubanos', 'Muebles de madera preciosa y aluminio. Juegos de sala y comedor.', '5357777777', 'Jose Ebanista', 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400', 95, TRUE, habana_id)
     RETURNING id INTO s7;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -177,8 +205,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 8: ELECTROHOGAR (Electrodomésticos)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('ElectroHogar', 'electrohogar', 'Ollas reina, batidoras, ventiladores y aires acondicionados.', '5358888888', 'Ana Laura', 'https://images.unsplash.com/photo-1571175443880-49e1d58b794a?w=400', pass_hash, 180)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('ElectroHogar', 'electrohogar', 'Ollas reina, batidoras, ventiladores y aires acondicionados.', '5358888888', 'Ana Laura', 'https://images.unsplash.com/photo-1571175443880-49e1d58b794a?w=400', 180, TRUE, habana_id)
     RETURNING id INTO s8;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -189,8 +217,8 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 9: SUPERMARKET 23 (Mixto)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, whatsapp_clicks)
-    VALUES ('Minimarket El Rápido', 'minimarket-el-rapido', 'Aseo, alimentos y bebidas. Todo lo que necesitas para tu hogar.', '5359999999', 'Pedro Luis', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400', pass_hash, 300)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Minimarket El Rápido', 'minimarket-el-rapido', 'Aseo, alimentos y bebidas. Todo lo que necesitas para tu hogar.', '5359999999', 'Pedro Luis', 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400', 300, TRUE, habana_id)
     RETURNING id INTO s9;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
@@ -201,37 +229,36 @@ BEGIN
     -- -------------------------------------------------------
     -- TIENDA 10: GAMER ZONE (Juegos) - SUSPENDIDA (EJEMPLO)
     -- -------------------------------------------------------
-    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, password_hash, is_suspended, whatsapp_clicks)
-    VALUES ('Gamer Zone', 'gamer-zone', 'Consolas, videojuegos y tarjetas de regalo.', '5350001111', 'Kevin Gamer', 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=400', pass_hash, TRUE, 10)
+    INSERT INTO stores (name, slug, description, whatsapp, owner_name, logo_url, is_suspended, whatsapp_clicks, is_public_market, province_id)
+    VALUES ('Gamer Zone', 'gamer-zone', 'Consolas, videojuegos y tarjetas de regalo.', '5350001111', 'Kevin Gamer', 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=400', TRUE, 10, FALSE, habana_id)
     RETURNING id INTO s10;
 
     INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock) VALUES
     (s10, 'PlayStation 5', 0, 800, 'Consolas', 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400', 1);
 
-
     -- ==================================================================
-    -- 4. CÓDIGOS DE ACTIVACIÓN
+    -- 4. CÓDIGOS DE ACTIVACIÓN (solo ejemplos)
     -- ==================================================================
 
     -- Códigos usados (vinculados a las tiendas anteriores)
-    INSERT INTO activation_codes (code, status, used_by_store_id) VALUES 
-    ('COD-MODAS-01', 'used', s1),
-    ('COD-TECNO-02', 'used', s2),
-    ('COD-YUYA-03', 'used', s3),
-    ('COD-FERRE-04', 'used', s4),
-    ('COD-REGAL-05', 'used', s5),
-    ('COD-AUTO-06', 'used', s6),
-    ('COD-MUEBL-07', 'used', s7),
-    ('COD-ELECT-08', 'used', s8),
-    ('COD-MARKET-09', 'used', s9),
-    ('COD-GAME-10', 'used', s10);
+    INSERT INTO activation_codes (code, status, used_by_store_id, used_at) VALUES
+    ('EJEMPLO-MODAS-01', 'used', s1, now()),
+    ('EJEMPLO-TECNO-02', 'used', s2, now()),
+    ('EJEMPLO-YUYA-03', 'used', s3, now()),
+    ('EJEMPLO-FERRE-04', 'used', s4, now()),
+    ('EJEMPLO-REGAL-05', 'used', s5, now()),
+    ('EJEMPLO-AUTO-06', 'used', s6, now()),
+    ('EJEMPLO-MUEBL-07', 'used', s7, now()),
+    ('EJEMPLO-ELECT-08', 'used', s8, now()),
+    ('EJEMPLO-MARKET-09', 'used', s9, now()),
+    ('EJEMPLO-GAME-10', 'used', s10, now());
 
-    -- Códigos activos (Para probar registro nuevo)
-    INSERT INTO activation_codes (code, status) VALUES 
-    ('CUBA-LIBRE', 'active'),
-    ('EMPRENDE-2026', 'active'),
-    ('VENDEDOR-VIP', 'active'),
-    ('TIENDA-NUEVA-1', 'active'),
-    ('TIENDA-NUEVA-2', 'active');
+    -- Códigos activos de ejemplo (para probar registro nuevo)
+    INSERT INTO activation_codes (code, status) VALUES
+    ('EJEMPLO-LIBRE-11', 'active'),
+    ('EJEMPLO-EMPRENDE-12', 'active'),
+    ('EJEMPLO-VIP-13', 'active'),
+    ('EJEMPLO-NUEVA-14', 'active'),
+    ('EJEMPLO-NUEVA-15', 'active');
 
 END $$;

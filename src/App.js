@@ -12,8 +12,10 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  Navigate,
   useNavigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
 // Importamos una colección completa de iconos para mejorar la experiencia visual
 import {
@@ -43,6 +45,7 @@ import {
   Grid,
   Settings as SettingsIcon,
   AlertCircle,
+  MapPin,
   //Camera,
   //Share2,
 } from "lucide-react";
@@ -166,15 +169,66 @@ const AppProvider = ({ children }) => {
   const [myStore, setMyStore] = useState(null);
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
-  const [superAdminContact, setSuperAdminContact] = useState("5350000000");
+  const [superAdminContact, setSuperAdminContact] = useState("");
+  const [provinces, setProvinces] = useState([]);
+  const [provincesError, setProvincesError] = useState(false);
+
+  // Provincias compartidas: se cargan una sola vez en el contexto y las
+  // usan la landing, el mercado y el formulario de Ajustes del vendedor.
+  const loadProvinces = async () => {
+    setProvincesError(false);
+    try {
+      const res = await fetch(`${API_URL}/public/provinces`);
+      if (!res.ok) throw new Error("No se pudieron cargar las provincias");
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error("Respuesta inválida");
+      setProvinces(data);
+    } catch (err) {
+      console.error("Error cargando provincias:", err);
+      setProvinces([]);
+      setProvincesError(true);
+    }
+  };
 
   useEffect(() => {
-    fetch(`${API_URL}/public/provinces`)
-      .then((res) => res.json())
-      .then((data) => {
-        //setProvinces(data);
-      })
-      .catch((err) => console.error("Error cargando provincias:", err));
+    loadProvinces();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Restaurar la sesión al montar si hay un token guardado.
+  // GET /api/me devuelve { store, products } para el vendedor
+  // y { admin: true } para el superadmin.
+  useEffect(() => {
+    const savedToken = localStorage.getItem("token");
+    if (!savedToken) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/me`, {
+          headers: { Authorization: `Bearer ${savedToken}` },
+        });
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem("token");
+          return;
+        }
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.store) {
+          setCurrentUser({
+            role: "vendor",
+            storeId: data.store.id,
+            name: data.store.owner_name,
+          });
+          setMyStore(data.store);
+          setMyProducts(Array.isArray(data.products) ? data.products : []);
+        } else if (data.admin) {
+          setCurrentUser({ role: "superadmin", name: "SuperAdmin" });
+          fetchAdminData(savedToken);
+        }
+      } catch (e) {
+        // Sin conexión: se mantiene el login manual.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sincronización del Token con el LocalStorage
@@ -205,6 +259,23 @@ const AppProvider = ({ children }) => {
 
   // --- MÉTODOS DE API ---
 
+  // Lee el mensaje de error de una respuesta; si no es JSON válido
+  // (p. ej. el backend está dormido o caído), devuelve un mensaje claro
+  // en vez de un error técnico.
+  const readErrorMessage = async (res) => {
+    try {
+      const data = await res.json();
+      return data.error || "Error en el servidor";
+    } catch (e) {
+      return "Sin conexión con el servidor, inténtalo de nuevo";
+    }
+  };
+
+  const friendlyError = (err) =>
+    !err || !err.message || err.message === "Failed to fetch"
+      ? "Sin conexión con el servidor, inténtalo de nuevo"
+      : err.message;
+
   const getStoreById = async (id) => {
     setLoading(true);
     try {
@@ -227,7 +298,7 @@ const AppProvider = ({ children }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ whatsapp, password }),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       const data = await res.json();
       setToken(data.token);
       setCurrentUser({
@@ -236,10 +307,10 @@ const AppProvider = ({ children }) => {
         name: data.store.owner_name,
       });
       setMyStore(data.store);
-      setMyProducts(data.products);
+      setMyProducts(Array.isArray(data.products) ? data.products : []);
       notify(`Bienvenido, ${data.store.name}`);
     } catch (err) {
-      notify(err.message, "error");
+      notify(friendlyError(err), "error");
     } finally {
       setLoading(false);
     }
@@ -253,7 +324,7 @@ const AppProvider = ({ children }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, code, password: pwd }),
       });
-      if (!res.ok) throw new Error((await res.json()).error);
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       const resp = await res.json();
       setToken(resp.token);
       setCurrentUser({
@@ -265,7 +336,7 @@ const AppProvider = ({ children }) => {
       setMyProducts([]);
       notify("¡Tienda creada con éxito!");
     } catch (err) {
-      notify(err.message, "error");
+      notify(friendlyError(err), "error");
     } finally {
       setLoading(false);
     }
@@ -341,14 +412,14 @@ const AppProvider = ({ children }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      if (!res.ok) throw new Error("Acceso inválido");
+      if (!res.ok) throw new Error(await readErrorMessage(res));
       const data = await res.json();
       setToken(data.token);
       setCurrentUser({ role: "superadmin", name: "SuperAdmin" });
       fetchAdminData(data.token);
       notify("Modo Admin activado");
     } catch (err) {
-      notify(err.message, "error");
+      notify(friendlyError(err), "error");
     } finally {
       setLoading(false);
     }
@@ -468,6 +539,7 @@ const AppProvider = ({ children }) => {
     setCurrentUser(null);
     setToken(null);
     setMyStore(null);
+    setMyProducts([]);
     setAdminData(null);
     notify("Sesión cerrada");
   };
@@ -481,6 +553,9 @@ const AppProvider = ({ children }) => {
         myProducts,
         adminData,
         superAdminContact,
+        provinces,
+        provincesError,
+        loadProvinces,
         loginStore,
         registerStore,
         saveProduct,
@@ -679,7 +754,7 @@ const ManualModal = ({ onClose, contact }) => (
               ¡Listo! Ya está visible en la vista general.
             </li>
             <li>Recuerda que puedes editar o eliminar productos cuando quieras.</li>
-            <li>Tambien puedes publicar tu compiando el enlace de tu tienda y compartiendolo en tus redes sociales o grupos de WhatsApp para atraer más clientes.</li>
+            <li>También puedes publicar tú copiando el enlace de tu tienda y compartiéndolo en tus redes sociales o grupos de WhatsApp para atraer más clientes.</li>
           </ul>
         </section>
         <section>
@@ -718,24 +793,183 @@ const LandingPage = () => {
   const [input, setInput] = useState("");
   const { superAdminContact } = useContext(AppContext);
   const [showManual, setShowManual] = useState(false);
+  const [stores, setStores] = useState([]);
+  const [storesError, setStoresError] = useState(false);
+  const [featured, setFeatured] = useState([]);
+  const [productsTotal, setProductsTotal] = useState(null);
+
+  const loadLandingData = async () => {
+    setStoresError(false);
+    try {
+      const res = await fetch(`${API_URL}/public/stores`);
+      if (!res.ok) throw new Error("No se pudieron cargar las tiendas");
+      const data = await res.json();
+      setStores(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setStores([]);
+      setStoresError(true);
+    }
+    try {
+      const res = await fetch(`${API_URL}/public/all-products?limit=100`);
+      if (!res.ok) throw new Error("No se pudieron cargar los productos");
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setFeatured(list.slice(0, 6));
+      setProductsTotal(list.length >= 100 ? "100+" : String(list.length));
+    } catch (e) {
+      setFeatured([]);
+      setProductsTotal(null);
+    }
+  };
+
+  useEffect(() => {
+    loadLandingData();
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const val = input.trim().toLowerCase().replace(/\s+/g, "-");
     if (!val) return;
-    if (val === "superadmin") navigate("/admin/login");
-    else navigate(`/${val}`);
+    navigate(`/${val}`);
+  };
+
+  const storeSlug = (s) =>
+    s.slug || (s.name || "").toLowerCase().trim().replace(/\s+/g, "-");
+
+  const licenseUrl = superAdminContact
+    ? `https://wa.me/${superAdminContact}?text=${encodeURIComponent("Hola, solicito una licencia")}`
+    : "";
+
+  const priceLabel = (p) => {
+    const cup = Number(p.price_cup) > 0 ? `${p.price_cup} CUP` : "";
+    const usd = Number(p.price_usd) > 0 ? `${p.price_usd} USD` : "";
+    return [cup, usd].filter(Boolean).join(" · ");
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
+    <div className="min-h-screen bg-gray-900">
+      <div className="w-full max-w-md mx-auto px-4 pt-10 pb-8 space-y-8">
+        {/* --- HERO --- */}
+        <div className="text-center animate-fade-in">
           <div className="w-24 h-24 bg-gray-800 rounded-3xl mx-auto flex items-center justify-center mb-6 border border-gray-700 shadow-2xl">
             <ShoppingBag className="text-blue-500" size={48} />
           </div>
           <h1 className="text-4xl font-black text-white">{APP_NAME}</h1>
+          <p className="text-lg text-blue-400 font-bold mt-2">
+            Compra y vende en toda Cuba
+          </p>
+          <p className="text-sm text-gray-400 mt-3 leading-relaxed">
+            Tiendas de toda la isla en un solo lugar. Busca lo que necesitas,
+            pide por WhatsApp y acuerda la entrega y el pago directo con el
+            vendedor.
+          </p>
+          <p className="text-sm text-gray-200 font-bold mt-4">
+            {stores.length > 0 || productsTotal !== null
+              ? `${stores.length} tiendas · ${productsTotal ?? "…"} productos`
+              : "Cargando el mercado..."}
+          </p>
         </div>
+
+        {/* --- ACCIONES PRINCIPALES --- */}
+        <div className="space-y-3">
+          <button
+            onClick={() => navigate("/explorar")}
+            className="w-full bg-blue-600 text-white py-3.5 rounded-xl text-sm font-bold hover:bg-blue-500 transition-all flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Grid size={18} /> Explorar Todo el Mercado
+          </button>
+          <button
+            onClick={() => navigate("/login")}
+            className="w-full bg-gray-800 text-gray-200 py-3.5 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
+          >
+            <User size={18} /> Soy Vendedor (Entrar)
+          </button>
+          <button
+            onClick={() => setShowManual(true)}
+            className="w-full bg-white/5 text-gray-300 py-3.5 rounded-xl text-sm font-bold border border-gray-600/50 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+          >
+            <FileText size={18} /> ¿Cómo funciona? (Guía)
+          </button>
+          {superAdminContact ? (
+            <a
+              href={licenseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full bg-green-600/10 text-green-500 py-3.5 rounded-xl text-sm font-bold border border-green-600/20 hover:bg-green-600/20 transition-all flex items-center justify-center gap-2 text-center"
+            >
+              <MessageCircle size={18} /> Solicitar Licencia
+            </a>
+          ) : (
+            <button
+              disabled
+              className="w-full bg-green-600/10 text-green-500/50 py-3.5 rounded-xl text-sm font-bold border border-green-600/20 flex items-center justify-center gap-2"
+            >
+              <MessageCircle size={18} /> Cargando contacto...
+            </button>
+          )}
+        </div>
+
+        {/* --- CÓMO SE COMPRA --- */}
+        <Card className="p-5">
+          <h2 className="font-bold text-white mb-4 text-base">
+            ¿Cómo se compra?
+          </h2>
+          <ol className="space-y-3 text-sm text-gray-300">
+            <li className="flex gap-3">
+              <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
+                1
+              </span>
+              Busca el producto o la tienda que te interesa.
+            </li>
+            <li className="flex gap-3">
+              <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
+                2
+              </span>
+              Toca “Pedir” y se abre WhatsApp con el mensaje listo.
+            </li>
+            <li className="flex gap-3">
+              <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
+                3
+              </span>
+              Acuerda con el vendedor la entrega y el pago.
+            </li>
+          </ol>
+        </Card>
+
+        {/* --- PRODUCTOS DESTACADOS --- */}
+        {featured.length > 0 && (
+          <div className="animate-fade-in-up">
+            <h2 className="font-bold text-white mb-3 text-base">
+              Destacados del mercado
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              {featured.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => navigate(`/${p.store_slug}`)}
+                  className="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 text-left shadow-lg active:scale-95 transition-transform"
+                >
+                  <div className="aspect-square bg-gray-900">
+                    <SafeImage
+                      src={parseImages(p.image_url)[0]}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-3">
+                    <p className="text-sm font-bold text-gray-200 line-clamp-2">
+                      {p.name}
+                    </p>
+                    <p className="text-xs text-blue-400 font-black mt-1">
+                      {priceLabel(p)}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* --- BUSCAR TIENDA --- */}
         <Card className="p-6 border-t-4 border-blue-600">
           <h2 className="font-bold text-gray-200 mb-4 flex gap-2 items-center text-lg">
             <Store className="text-blue-500" size={20} /> Buscar Tienda
@@ -751,45 +985,117 @@ const LandingPage = () => {
               <ArrowRight size={20} />
             </button>
           </form>
-        </Card>
-        <div className="text-center space-y-3">
-          <button
-            onClick={() => navigate("/explorar")}
-            className="w-full bg-blue-600/10 text-blue-500 py-3.5 rounded-xl text-sm font-bold border border-blue-600/20 hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2 mb-3"
-          >
-            <Grid size={18} /> Explorar Todo el Mercado
-          </button>
-
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full bg-gray-800 text-gray-200 py-3.5 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
-          >
-            <User size={18} /> Soy Vendedor (Entrar)
-          </button>
-          {/* 2. NUEVO BOTÓN DEL MANUAL */}
-          <button
-            onClick={() => setShowManual(true)}
-            className="w-full bg-white/5 text-gray-300 py-3.5 rounded-xl text-sm font-bold border border-gray-600/50 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-          >
-            <FileText size={18} /> ¿Cómo funciona? (Guía)
-          </button>
-          {/* Manual Modal */}
-          {showManual && (
-            <ManualModal
-              onClose={() => setShowManual(false)}
-              contact={superAdminContact}
-            />
+          {storesError ? (
+            <div className="mt-4 text-center">
+              <p className="text-xs text-gray-400 mb-2">
+                No se pudieron cargar las tiendas.
+              </p>
+              <button
+                onClick={loadLandingData}
+                className="text-xs text-blue-400 font-bold underline"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : (
+            stores.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  Tiendas en el mercado
+                </p>
+                <ul className="space-y-1">
+                  {stores.slice(0, 12).map((s) => (
+                    <li key={s.id}>
+                      <button
+                        onClick={() => navigate(`/${storeSlug(s)}`)}
+                        className="w-full text-left text-sm text-blue-400 hover:text-blue-300 font-bold py-1.5 flex items-center justify-between gap-2"
+                      >
+                        <span className="truncate">{s.name}</span>
+                        {s.province_name && (
+                          <span className="text-[11px] text-gray-500 font-normal shrink-0">
+                            {s.province_name}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
           )}
-          <a
-            href={`https://wa.me/${superAdminContact}?text=Hola, solicito una licencia`}
-            target="_blank"
-            rel="noreferrer"
-            className="w-full bg-green-600/10 text-green-500 py-3.5 rounded-xl text-sm font-bold border border-green-600/20 hover:bg-green-600/20 transition-all flex items-center justify-center gap-2 text-center"
-          >
-            <MessageCircle size={18} /> Solicitar Licencia
-          </a>
-        </div>
+        </Card>
+
+        {/* --- VENDE TU TIENDA --- */}
+        <Card className="p-6 border-t-4 border-emerald-600">
+          <h2 className="font-bold text-white mb-1 text-lg">
+            Vende tu tienda
+          </h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Pon tus productos frente a compradores de toda Cuba.
+          </p>
+          <ul className="space-y-2 text-sm text-gray-300 mb-5">
+            <li className="flex gap-2">
+              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              Tu tienda con enlace propio para compartir
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              Pedidos directos por WhatsApp, sin intermediarios
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              Aparece en el mercado global y por provincia
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+              Sube tus productos con fotos y precios en CUP y USD
+            </li>
+          </ul>
+          {superAdminContact ? (
+            <a
+              href={licenseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full bg-emerald-600 text-white py-3.5 rounded-xl text-sm font-bold hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 text-center"
+            >
+              <MessageCircle size={18} /> Solicitar licencia
+            </a>
+          ) : (
+            <button
+              disabled
+              className="w-full bg-emerald-600/40 text-white/60 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+            >
+              <MessageCircle size={18} /> Cargando contacto...
+            </button>
+          )}
+          <p className="text-xs text-gray-500 mt-3 text-center">
+            Precio y duración: consúltalos por WhatsApp.
+          </p>
+        </Card>
+
+        {/* --- PIE --- */}
+        <footer className="text-center space-y-2 pt-2 pb-4">
+          <p className="text-xs text-gray-500 font-bold">{APP_NAME}</p>
+          {superAdminContact ? (
+            <a
+              href={licenseUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-green-500 hover:text-green-400 font-bold inline-flex items-center gap-1"
+            >
+              <MessageCircle size={12} /> Contacto por WhatsApp
+            </a>
+          ) : (
+            <p className="text-xs text-gray-600">Cargando contacto...</p>
+          )}
+        </footer>
       </div>
+      {showManual && (
+        <ManualModal
+          onClose={() => setShowManual(false)}
+          contact={superAdminContact}
+        />
+      )}
     </div>
   );
 };
@@ -798,23 +1104,71 @@ const StoreFrontend = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [loadingStore, setLoadingStore] = useState(true);
+  const [storeError, setStoreError] = useState(false);
   const [filter, setFilter] = useState("");
 
   useEffect(() => {
+    setLoadingStore(true);
+    setStoreError(false);
     fetch(`${API_URL}/store/${slug}`)
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then(setData)
+      .then((res) => {
+        if (!res.ok) throw new Error("Tienda no encontrada");
+        return res.json();
+      })
+      .then((d) => {
+        setData(d);
+        setLoadingStore(false);
+      })
       .catch(() => {
-        alert("Tienda no encontrada");
-        navigate("/");
+        setStoreError(true);
+        setLoadingStore(false);
       });
-  }, [slug, navigate]);
+  }, [slug]);
 
-  if (!data) return null;
+  if (loadingStore) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-4 p-4 animate-fade-in">
+        <Loader2 className="animate-spin text-blue-500" size={40} />
+        <p className="text-gray-400 text-sm font-bold">Cargando tienda...</p>
+        <div className="w-full max-w-md space-y-3 mt-4">
+          <div className="h-10 bg-gray-800 rounded-xl animate-pulse" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="aspect-square bg-gray-800 rounded-xl animate-pulse" />
+            <div className="aspect-square bg-gray-800 rounded-xl animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (storeError || !data || !data.store) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+        <Card className="p-8 max-w-sm w-full text-center space-y-4">
+          <Store className="text-gray-600 mx-auto" size={48} />
+          <h2 className="text-xl font-bold text-white">
+            Tienda no encontrada
+          </h2>
+          <p className="text-sm text-gray-400">
+            Esta tienda no existe o ya no está disponible.
+          </p>
+          <Button onClick={() => navigate("/")} className="w-full">
+            Volver al inicio
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   const { store, products } = data;
-  const filtered = products.filter((p) =>
-    p.name.toLowerCase().includes(filter.toLowerCase()),
+  const visibleProducts = (Array.isArray(products) ? products : []).filter(
+    (p) => p.is_visible !== false,
   );
+  const filtered = visibleProducts.filter((p) =>
+    (p.name || "").toLowerCase().includes(filter.toLowerCase()),
+  );
+  const provinceName = store.province_name || store.province || "";
 
   const contact = (p) => {
     const prices = `${p.price_cup > 0 ? p.price_cup + " CUP" : ""} ${p.price_usd > 0 ? p.price_usd + " USD" : ""}`;
@@ -846,6 +1200,37 @@ const StoreFrontend = () => {
           />
         </div>
       </div>
+      {(store.description || store.owner_name || provinceName) && (
+        <div className="px-4 pt-4">
+          <Card className="p-4 space-y-1">
+            {store.description && (
+              <p className="text-sm text-gray-300">{store.description}</p>
+            )}
+            {store.owner_name && (
+              <p className="text-xs text-gray-500">
+                Dueño: {store.owner_name}
+              </p>
+            )}
+            {provinceName && (
+              <p className="text-xs text-gray-500 flex items-center gap-1">
+                <MapPin size={12} /> {provinceName}
+              </p>
+            )}
+          </Card>
+        </div>
+      )}
+      {store.whatsapp && (
+        <div className="px-4 pt-3">
+          <a
+            href={`https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Hola, vi tu tienda ${store.name} en Mercado Cuba`)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="w-full bg-green-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-green-500 transition-all flex items-center justify-center gap-2"
+          >
+            <MessageCircle size={18} /> Escribir a la tienda
+          </a>
+        </div>
+      )}
       <div className="p-4">
         <input
           className="w-full pl-4 py-3 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none"
@@ -854,6 +1239,16 @@ const StoreFrontend = () => {
           onChange={(e) => setFilter(e.target.value)}
         />
       </div>
+      {filtered.length === 0 && (
+        <div className="text-center py-16 px-6">
+          <ShoppingBag size={48} className="mx-auto mb-4 text-gray-600" />
+          <p className="text-sm text-gray-400">
+            {filter
+              ? "Ningún producto coincide con tu búsqueda."
+              : "Esta tienda aún no tiene productos visibles."}
+          </p>
+        </div>
+      )}
       <div className="px-4 pb-4 grid grid-cols-2 gap-3">
         {filtered.map((p) => (
           <div
@@ -945,6 +1340,22 @@ const AuthScreen = ({ mode }) => {
                 ? "Registro"
                 : "Admin"}
           </h2>
+          {currMode === "register" && (
+            <div className="mb-5 p-4 bg-emerald-900/20 border border-emerald-600/30 rounded-xl">
+              <h3 className="text-sm font-bold text-emerald-400 mb-2">
+                ¿Qué incluye la licencia?
+              </h3>
+              <ul className="text-xs text-gray-300 space-y-1 list-disc pl-4">
+                <li>Tu tienda con enlace propio para compartir</li>
+                <li>Pedidos directos por WhatsApp</li>
+                <li>Aparece en el mercado global y por provincia</li>
+              </ul>
+              <p className="text-xs text-gray-400 mt-2">
+                Precio y duración: consúltalos por WhatsApp. Necesitas el
+                código de licencia para crear tu tienda.
+              </p>
+            </div>
+          )}
           <form onSubmit={submit} className="space-y-4">
             {currMode !== "admin" && (
               <Input
@@ -999,16 +1410,21 @@ const AuthScreen = ({ mode }) => {
                 ¿Eres nuevo? Regístrate
               </button>
             )}
-            {currMode === "register" && (
-              <a
-                href={`https://wa.me/${superAdminContact}?text=Necesito código`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-green-500 text-sm block w-full hover:text-green-400 flex justify-center gap-1 items-center"
-              >
-                <MessageCircle size={14} /> Pedir licencia
-              </a>
-            )}
+            {currMode === "register" &&
+              (superAdminContact ? (
+                <a
+                  href={`https://wa.me/${superAdminContact}?text=${encodeURIComponent("Necesito código")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-green-500 text-sm block w-full hover:text-green-400 flex justify-center gap-1 items-center"
+                >
+                  <MessageCircle size={14} /> Pedir licencia
+                </a>
+              ) : (
+                <span className="text-green-500/50 text-sm block w-full flex justify-center gap-1 items-center">
+                  <MessageCircle size={14} /> Cargando contacto...
+                </span>
+              ))}
             {currMode !== "login" && (
               <button
                 onClick={() => setCurrMode("login")}
@@ -1029,9 +1445,10 @@ const VendorDashboard = () => {
     myStore,
     myProducts,
     saveProduct,
-    //deleteProduct,
+    deleteProduct,
     updateStoreSettings,
     logout,
+    provinces,
   } = useContext(AppContext);
   const { notify } = useToast();
   const navigate = useNavigate();
@@ -1039,7 +1456,6 @@ const VendorDashboard = () => {
   const [modal, setModal] = useState(false);
   const [editP, setEditP] = useState(null);
   const [formP, setFormP] = useState({});
-  const [provinces, setProvinces] = useState([]); // Estado para provincias
 
   const [formS, setFormS] = useState({
     name: myStore?.name || "",
@@ -1050,20 +1466,34 @@ const VendorDashboard = () => {
     province_id: myStore?.province_id || "",
   });
 
+  // Sincroniza el formulario de Ajustes cuando la tienda llega
+  // (p. ej. tras restaurar la sesión) o cambia al guardar.
   useEffect(() => {
-    fetch(`${API_URL}/public/provinces`)
-      .then((res) => res.json())
-      .then((data) => {
-        setProvinces(data);
-      })
-      .catch((err) => console.error("Error obteniendo las provincias:", err));
-  }, []);
+    if (!myStore) return;
+    setFormS({
+      name: myStore.name || "",
+      description: myStore.description || "",
+      logoUrl: myStore.logo_url || "",
+      whatsapp: myStore.whatsapp || "",
+      is_public_market: !!myStore.is_public_market,
+      province_id: myStore.province_id || "",
+    });
+  }, [myStore]);
 
   const openModal = (p) => {
     setEditP(p);
     setFormP(
       p
-        ? { ...p, images: parseImages(p.image_url) }
+        ? {
+            ...p,
+            // El servidor guarda price_cup / price_usd; el formulario
+            // usa priceCup / priceUsd. Sin este mapeo salían vacíos.
+            priceCup: p.price_cup ?? p.priceCup ?? 0,
+            priceUsd: p.price_usd ?? p.priceUsd ?? 0,
+            category: p.category || "",
+            stock: p.stock ?? 1,
+            images: parseImages(p.image_url),
+          }
         : {
             name: "",
             priceCup: 0,
@@ -1083,26 +1513,62 @@ const VendorDashboard = () => {
     setModal(false);
   };
 
-  const handleImageUpload = (e, target) => {
-    const files = Array.from(e.target.files);
-    Promise.all(
-      files.map(
-        (file) =>
-          new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => resolve(ev.target.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          }),
-      ),
-    ).then((imgs) => {
+  // Comprime una imagen con canvas: máx. 900 px en el lado mayor,
+  // JPEG calidad 0.75. Una foto de teléfono de 2-4 MB queda en
+  // ~100-200 KB, clave para datos lentos y caros en Cuba.
+  const compressImage = (file) =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const maxSide = 900;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("No se pudo leer la imagen"));
+      };
+      img.src = url;
+    });
+
+  const handleImageUpload = async (e, target) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const tooBig = files.filter((f) => f.size > 10 * 1024 * 1024);
+    if (tooBig.length > 0) {
+      notify("Foto muy grande", "error");
+    }
+    let okFiles = files.filter((f) => f.size <= 10 * 1024 * 1024);
+    if (target === "product") {
+      const slotsLeft = Math.max(0, 3 - (formP.images || []).length);
+      if (okFiles.length > slotsLeft) {
+        notify("Máximo 3 fotos por producto", "error");
+        okFiles = okFiles.slice(0, slotsLeft);
+      }
+    } else {
+      okFiles = okFiles.slice(0, 1);
+    }
+    if (okFiles.length === 0) return;
+    try {
+      const imgs = await Promise.all(okFiles.map(compressImage));
       if (target === "product")
         setFormP((prev) => ({
           ...prev,
           images: [...(prev.images || []), ...imgs],
         }));
       else setFormS((prev) => ({ ...prev, logoUrl: imgs[0] }));
-    });
+    } catch (err) {
+      notify("No se pudo procesar la foto", "error");
+    }
   };
 
   return (
@@ -1195,6 +1661,12 @@ const VendorDashboard = () => {
                   >
                     {p.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
                   </button>
+                  <button
+                    onClick={() => deleteProduct(p.id)}
+                    className="bg-gray-700 p-2 rounded-lg text-red-400"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -1212,14 +1684,19 @@ const VendorDashboard = () => {
               value={formS.whatsapp || ""}
               onChange={(e) => setFormS({ ...formS, whatsapp: e.target.value })}
             />
-            <textarea
-              className="w-full px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none focus:border-blue-500"
-              rows="3"
-              value={formS.description || ""}
-              onChange={(e) =>
-                setFormS({ ...formS, description: e.target.value })
-              }
-            />
+            <div>
+              <label className="block text-xs font-bold text-gray-400 mb-1.5 ml-1 uppercase tracking-wider">
+                Descripción de la tienda
+              </label>
+              <textarea
+                className="w-full px-4 py-3 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none focus:border-blue-500"
+                rows="3"
+                value={formS.description || ""}
+                onChange={(e) =>
+                  setFormS({ ...formS, description: e.target.value })
+                }
+              />
+            </div>
             <div className="flex items-center gap-4 p-4 bg-gray-900 rounded-xl border border-gray-700">
               <SafeImage
                 src={formS.logoUrl}
@@ -1348,6 +1825,27 @@ const VendorDashboard = () => {
                   value={formP.priceUsd}
                   onChange={(e) =>
                     setFormP({ ...formP, priceUsd: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Input
+                  label="Categoría"
+                  value={formP.category || ""}
+                  onChange={(e) =>
+                    setFormP({ ...formP, category: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex-1">
+                <Input
+                  label="Stock"
+                  type="number"
+                  value={formP.stock ?? 1}
+                  onChange={(e) =>
+                    setFormP({ ...formP, stock: e.target.value })
                   }
                 />
               </div>
@@ -1676,6 +2174,34 @@ const SuperAdminPanel = () => {
   );
 };
 
+// Sube arriba al cambiar de ruta.
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
+
+const NotFoundPage = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+      <Card className="p-8 max-w-sm w-full text-center space-y-4">
+        <h2 className="text-2xl font-black text-white">
+          Página no encontrada
+        </h2>
+        <p className="text-sm text-gray-400">
+          La dirección que buscaste no existe.
+        </p>
+        <Button onClick={() => navigate("/")} className="w-full">
+          Volver al inicio
+        </Button>
+      </Card>
+    </div>
+  );
+};
+
 // --- CONFIGURACIÓN DE RUTAS ---
 const AppRoutes = () => {
   return (
@@ -1683,11 +2209,13 @@ const AppRoutes = () => {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthScreen mode="login" />} />
       <Route path="/register" element={<AuthScreen mode="register" />} />
+      <Route path="/vendedor" element={<Navigate to="/login" replace />} />
       <Route path="/admin/login" element={<AuthScreen mode="admin" />} />
       <Route path="/dashboard" element={<VendorDashboard />} />
       <Route path="/admin/panel" element={<SuperAdminPanel />} />
       <Route path="/:slug" element={<StoreFrontend />} />
       <Route path="/explorar" element={<GlobalMarketplace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 };
@@ -1696,6 +2224,7 @@ const AppRoutes = () => {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <ToastProvider>
         <AppProvider>
           {/* El TailwindInjector se asegura de que los estilos existan */}
