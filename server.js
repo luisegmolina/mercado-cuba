@@ -236,7 +236,7 @@ app.get("/api/public/all-products", async (req, res, next) => {
 app.get("/api/public/stores", async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, logo_url, description, whatsapp FROM stores WHERE is_active = TRUE AND is_suspended = FALSE ORDER BY created_at DESC`,
+      `SELECT id, name, logo_url, description, whatsapp FROM stores WHERE is_active = TRUE AND is_suspended = FALSE AND (is_public_market = TRUE OR is_public_market::text = 'true') ORDER BY created_at DESC`,
     );
     res.json(result.rows);
   } catch (err) {
