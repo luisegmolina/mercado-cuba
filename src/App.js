@@ -58,6 +58,13 @@ import {
   Settings as SettingsIcon,
   AlertCircle,
   MapPin,
+  Search,
+  Zap,
+  ShieldCheck,
+  Globe,
+  Wallet,
+  BadgeCheck,
+  Sparkles,
   //Camera,
   //Share2,
 } from "lucide-react";
@@ -615,7 +622,7 @@ const AppProvider = ({ children }) => {
 const Button = ({ children, onClick, className = "", ...props }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-3.5 rounded-xl font-bold active:scale-95 flex items-center justify-center gap-2 shadow-lg text-sm bg-blue-600 text-white hover:bg-blue-500 transition-all ${className}`}
+    className={`px-4 py-3.5 rounded-2xl font-bold active:scale-95 flex items-center justify-center gap-2 shadow-glow text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 transition-all ${className}`}
     {...props}
   >
     {children}
@@ -624,11 +631,11 @@ const Button = ({ children, onClick, className = "", ...props }) => (
 
 const Input = ({ label, ...props }) => (
   <div className="mb-4">
-    <label className="block text-xs font-bold text-gray-400 mb-1.5 ml-1 uppercase tracking-wider">
+    <label className="block text-xs font-bold text-slate-400 mb-1.5 ml-1 uppercase tracking-wider">
       {label}
     </label>
     <input
-      className="w-full px-4 py-3.5 rounded-xl border border-gray-700 bg-gray-800 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder-gray-600"
+      className="w-full px-4 py-3.5 rounded-2xl border border-white/10 bg-white/[0.04] text-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition-all placeholder:text-slate-500"
       {...props}
     />
   </div>
@@ -636,7 +643,7 @@ const Input = ({ label, ...props }) => (
 
 const Card = ({ children, className = "" }) => (
   <div
-    className={`bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-hidden ${className}`}
+    className={`bg-white/[0.04] rounded-3xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm ${className}`}
   >
     {children}
   </div>
@@ -647,12 +654,12 @@ const ImageGallery = ({ imagesStr }) => {
   const [idx, setIdx] = useState(0);
   if (imgs.length === 0)
     return (
-      <div className="aspect-square bg-gray-800 flex items-center justify-center border-b border-gray-700">
-        <ImageIcon size={48} className="text-gray-700" />
+      <div className="aspect-square bg-slate-800 flex items-center justify-center border-b border-white/5">
+        <ImageIcon size={48} className="text-slate-700" />
       </div>
     );
   return (
-    <div className="relative group bg-gray-900">
+    <div className="relative group bg-slate-900">
       <div className="aspect-square overflow-hidden">
         <SafeImage
           src={imgs[idx]}
@@ -682,15 +689,15 @@ const ImageGallery = ({ imagesStr }) => {
 // Componente Manual - Alineado a la Izquierda
 const ManualModal = ({ onClose, contact }) => (
   <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-    <div className="bg-gray-800 w-full max-w-2xl max-h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-700">
+    <div className="bg-[#0F172A] w-full max-w-2xl max-h-[85vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/10">
       {/* Cabecera */}
-      <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
-          <BookOpen className="text-blue-500" /> Manual de Vendedor
+      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900">
+        <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+          <BookOpen className="text-sky-400" /> Manual de Vendedor
         </h2>
         <button
           onClick={onClose}
-          className="p-2 bg-gray-800 rounded-full text-gray-400 hover:text-white"
+          className="p-2 bg-white/[0.06] rounded-full text-slate-400 hover:text-white"
         >
           <X size={20} />
         </button>
@@ -777,16 +784,16 @@ const ManualModal = ({ onClose, contact }) => (
       </div>
 
       {/* Pie del Manual */}
-      <div className="p-4 border-t border-gray-700 bg-gray-900 flex flex-col gap-3">
-        <p className="text-xs text-center text-gray-500">
+      <div className="p-4 border-t border-white/10 bg-slate-900 flex flex-col gap-3">
+        <p className="text-xs text-center text-slate-500">
           Soporte Técnico:{" "}
-          <span className="text-gray-300 font-bold">
+          <span className="text-slate-300 font-bold">
             {formatPhone(contact) || contact}
           </span>
         </p>
         <button
           onClick={onClose}
-          className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold w-full hover:bg-blue-500 transition-colors shadow-lg"
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-2xl font-bold w-full hover:from-blue-500 hover:to-indigo-500 transition-colors shadow-glow"
         >
           ¡Entendido, quiero empezar!
         </button>
@@ -849,24 +856,43 @@ const LandingPage = () => {
     : "";
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <div className="w-full max-w-md mx-auto px-4 pt-10 pb-8 space-y-8">
+    <div className="min-h-screen bg-[#070B14] relative overflow-hidden">
+      {/* Glows decorativos */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_at_top,rgba(37,99,235,0.35),transparent_60%)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-32 top-72 h-80 w-80 rounded-full bg-rose-600/20 blur-3xl"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -left-32 top-[1100px] h-80 w-80 rounded-full bg-emerald-500/10 blur-3xl"
+      />
+      <div className="relative w-full max-w-5xl mx-auto px-4 pt-10 pb-10 space-y-12 sm:space-y-16">
         {/* --- HERO --- */}
         <div className="text-center animate-fade-in">
-          <div className="w-24 h-24 bg-gray-800 rounded-3xl mx-auto flex items-center justify-center mb-6 border border-gray-700 shadow-2xl">
-            <ShoppingBag className="text-blue-500" size={48} />
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-bold text-sky-300 backdrop-blur">
+            <Sparkles size={14} className="text-amber-300" /> El marketplace
+            de Cuba
           </div>
-          <h1 className="text-4xl font-black text-white">{APP_NAME}</h1>
-          <p className="text-lg text-blue-400 font-bold mt-2">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 rounded-[2rem] mx-auto flex items-center justify-center mt-7 mb-6 shadow-glow animate-float ring-1 ring-white/20">
+            <ShoppingBag className="text-white" size={46} />
+          </div>
+          <h1 className="font-display text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.05]">
+            Mercado{" "}
+            <span className="text-gradient-cuba animate-gradient-x">Cuba</span>
+          </h1>
+          <p className="text-xl sm:text-2xl text-white font-bold mt-3">
             Compra y vende en toda Cuba 🇨🇺
           </p>
-          <p className="text-sm text-gray-400 mt-3 leading-relaxed">
-            De Pinar a Guantánamo: lo que buscas, directo con el vendedor,
-            sin intermediarios. Busca, pide por WhatsApp y acuerda la entrega
-            y el pago con el vendedor.
+          <p className="text-base text-slate-300 mt-4 leading-relaxed max-w-xl mx-auto">
+            Todo en un solo lugar: precios en CUP y USD, y pides directo al
+            vendedor por WhatsApp. Sin intermediarios, sin vueltas.
           </p>
-          <div className="h-1.5 w-24 mx-auto mt-5 rounded-full bg-gradient-to-r from-blue-600 via-white to-red-600" />
-          <p className="text-sm text-gray-200 font-bold mt-4">
+          <div className="h-1.5 w-28 mx-auto mt-6 rounded-full bg-gradient-to-r from-blue-600 via-white to-red-600" />
+          <p className="text-sm text-slate-300 font-bold mt-5">
             {stores.length > 0 || productsTotal !== null
               ? `${stores.length} tiendas · ${productsTotal ?? "…"} productos`
               : "Cargando el mercado..."}
@@ -874,22 +900,22 @@ const LandingPage = () => {
         </div>
 
         {/* --- ACCIONES PRINCIPALES --- */}
-        <div className="space-y-3">
+        <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
           <button
             onClick={() => navigate("/explorar")}
-            className="w-full bg-blue-600 text-white py-3.5 rounded-xl text-sm font-bold hover:bg-blue-500 transition-all flex items-center justify-center gap-2 shadow-lg"
+            className="sm:col-span-2 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-2xl text-sm font-bold hover:from-blue-500 hover:to-indigo-500 transition-all flex items-center justify-center gap-2 shadow-glow"
           >
             <Grid size={18} /> Explorar Todo el Mercado
           </button>
           <button
             onClick={() => navigate("/login")}
-            className="w-full bg-gray-800 text-gray-200 py-3.5 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-white/[0.04] text-slate-200 py-3.5 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2 backdrop-blur"
           >
             <User size={18} /> Soy Vendedor (Entrar)
           </button>
           <button
             onClick={() => setShowManual(true)}
-            className="w-full bg-white/5 text-gray-300 py-3.5 rounded-xl text-sm font-bold border border-gray-600/50 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-white/[0.04] text-slate-200 py-3.5 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2 backdrop-blur"
           >
             <FileText size={18} /> ¿Cómo funciona? (Guía)
           </button>
@@ -898,44 +924,238 @@ const LandingPage = () => {
               href={licenseUrl}
               target="_blank"
               rel="noreferrer"
-              className="w-full bg-green-600/10 text-green-500 py-3.5 rounded-xl text-sm font-bold border border-green-600/20 hover:bg-green-600/20 transition-all flex items-center justify-center gap-2 text-center"
+              className="sm:col-span-2 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-4 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green"
             >
               <MessageCircle size={18} /> Solicitar Licencia
             </a>
           ) : (
             <button
               disabled
-              className="w-full bg-green-600/10 text-green-500/50 py-3.5 rounded-xl text-sm font-bold border border-green-600/20 flex items-center justify-center gap-2"
+              className="sm:col-span-2 w-full bg-emerald-600/10 text-emerald-500/50 py-4 rounded-2xl text-sm font-bold border border-emerald-600/20 flex items-center justify-center gap-2"
             >
               <MessageCircle size={18} /> Cargando contacto...
             </button>
           )}
         </div>
 
-        {/* --- CÓMO SE COMPRA --- */}
-        <Card className="p-5">
-          <h2 className="font-bold text-white mb-4 text-base">
-            ¿Cómo se compra?
+        {/* --- ¿POR QUÉ USAR MERCADO CUBA? --- */}
+        <div className="animate-fade-in-up">
+          <div className="text-center mb-6">
+            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              ¿Por qué usar Mercado Cuba?
+            </h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
+              El mercado entero en tu bolsillo: para comprar sin vueltas y
+              para vender en toda la isla.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Para comprar */}
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-glow shrink-0">
+                  <ShoppingBag className="text-white" size={22} />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-white leading-tight">
+                    Para comprar
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Encuentra lo que buscas, sin salir de aquí
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-4">
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
+                    <Search size={17} className="text-sky-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Todo en un solo lugar
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Tiendas de todas las provincias en una sola pantalla.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
+                    <Wallet size={17} className="text-sky-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Precios claros en CUP y USD
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Ves el precio en las dos monedas antes de escribir.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
+                    <MessageCircle size={17} className="text-sky-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Pides directo por WhatsApp
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Hablas con el vendedor, sin intermediarios ni
+                      comisiones.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
+                    <ShieldCheck size={17} className="text-sky-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Tú cuadras la entrega
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Acuerdas entrega y pago directo con la tienda.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+              <button
+                onClick={() => navigate("/explorar")}
+                className="mt-6 w-full bg-white/[0.06] text-white py-3.5 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+              >
+                Explorar el mercado <ArrowRight size={16} />
+              </button>
+            </Card>
+            {/* Para vender */}
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-glow-green shrink-0">
+                  <Store className="text-white" size={22} />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-white leading-tight">
+                    Para vender
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Tu negocio visible en toda Cuba
+                  </p>
+                </div>
+              </div>
+              <ul className="space-y-4">
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                    <BadgeCheck size={17} className="text-emerald-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Tu tienda con su propio enlace
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Una página solo para ti, lista para compartir en
+                      WhatsApp y redes.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                    <Globe size={17} className="text-emerald-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Te ven en toda Cuba
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Apareces en el mercado y por provincia, no solo en tu
+                      barrio.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                    <Zap size={17} className="text-emerald-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Pedidos directos a tu WhatsApp
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      El cliente te escribe con el producto ya elegido.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex gap-3">
+                  <span className="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center">
+                    <CheckCircle size={17} className="text-emerald-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      Sin crear una web
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Sin programar nada: subes fotos y precios, y a vender.
+                      Solo pagas una licencia.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+              {superAdminContact ? (
+                <a
+                  href={licenseUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-6 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green"
+                >
+                  <MessageCircle size={18} /> Solicitar licencia
+                </a>
+              ) : (
+                <button
+                  disabled
+                  className="mt-6 w-full bg-emerald-600/40 text-white/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+                >
+                  <MessageCircle size={18} /> Cargando contacto...
+                </button>
+              )}
+            </Card>
+          </div>
+        </div>
+
+        {/* --- CÓMO FUNCIONA --- */}
+        <Card className="p-6 sm:p-8">
+          <h2 className="font-display text-xl sm:text-2xl font-extrabold text-white mb-1 text-center tracking-tight">
+            ¿Cómo funciona?
           </h2>
-          <ol className="space-y-3 text-sm text-gray-300">
-            <li className="flex gap-3">
-              <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
+          <p className="text-sm text-slate-400 text-center mb-6">
+            Comprar es así de simple
+          </p>
+          <ol className="grid sm:grid-cols-3 gap-4 text-sm text-slate-300">
+            <li className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 text-center">
+              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
                 1
               </span>
-              Busca lo que te hace falta, por tienda o por provincia.
+              <p className="font-bold text-white mt-3">Busca</p>
+              <p className="text-slate-400 mt-1">
+                Lo que te hace falta, por tienda o por provincia.
+              </p>
             </li>
-            <li className="flex gap-3">
-              <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
+            <li className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 text-center">
+              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
                 2
               </span>
-              Toca “Pedir” y se abre WhatsApp con el mensaje ya listo.
+              <p className="font-bold text-white mt-3">Pide</p>
+              <p className="text-slate-400 mt-1">
+                Toca “Pedir” y se abre WhatsApp con el mensaje ya listo.
+              </p>
             </li>
-            <li className="flex gap-3">
-              <span className="w-6 h-6 shrink-0 rounded-full bg-blue-600 text-white text-xs font-black flex items-center justify-center">
+            <li className="rounded-2xl bg-white/[0.03] border border-white/5 p-4 text-center">
+              <span className="w-10 h-10 mx-auto rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-white text-sm font-black flex items-center justify-center shadow-glow">
                 3
               </span>
-              Cuadra con el vendedor la entrega y el pago, directo y sin
-              vueltas.
+              <p className="font-bold text-white mt-3">Cuadra</p>
+              <p className="text-slate-400 mt-1">
+                Acuerda con el vendedor la entrega y el pago, directo y sin
+                vueltas.
+              </p>
             </li>
           </ol>
         </Card>
@@ -943,32 +1163,48 @@ const LandingPage = () => {
         {/* --- PRODUCTOS DESTACADOS --- */}
         {featured.length > 0 && (
           <div className="animate-fade-in-up">
-            <h2 className="font-bold text-white mb-1 text-base">
-              Destacados del mercado
-            </h2>
-            <p className="text-xs text-gray-400 mb-3">
-              Lo que se está moviendo hoy en la isla
-            </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-end justify-between gap-3 mb-1">
+              <div>
+                <h2 className="font-display text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                  Destacados del mercado
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Lo que se está moviendo hoy en la isla
+                </p>
+              </div>
+              <button
+                onClick={() => navigate("/explorar")}
+                className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 shrink-0"
+              >
+                Ver todo <ArrowRight size={14} />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-3">
               {featured.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setDetailProduct(p)}
-                  className="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 text-left shadow-lg active:scale-95 transition-transform"
+                  className="group bg-white/[0.04] rounded-3xl overflow-hidden border border-white/10 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 active:scale-[0.98]"
                 >
-                  <div className="aspect-square bg-gray-900">
+                  <div className="aspect-square bg-slate-900 overflow-hidden">
                     <SafeImage
                       src={parseImages(p.image_url)[0]}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                   </div>
-                  <div className="p-3">
-                    <p className="text-sm font-bold text-gray-200 line-clamp-2">
+                  <div className="p-3 sm:p-4">
+                    <p className="text-sm font-bold text-slate-100 line-clamp-2">
                       {p.name}
                     </p>
-                    <p className="text-xs text-blue-400 font-black mt-1">
+                    <p className="text-sm text-sky-400 font-black mt-1">
                       {priceLabel(p)}
                     </p>
+                    {p.store_name && (
+                      <p className="text-[11px] text-slate-500 truncate mt-1 flex items-center gap-1">
+                        <Store size={11} className="shrink-0" />{" "}
+                        {p.store_name}
+                      </p>
+                    )}
                   </div>
                 </button>
               ))}
@@ -976,30 +1212,31 @@ const LandingPage = () => {
           </div>
         )}
 
+        <div className="grid lg:grid-cols-2 gap-4 sm:gap-6 items-start">
         {/* --- BUSCAR TIENDA --- */}
         <Card className="p-6 border-t-4 border-blue-600">
-          <h2 className="font-bold text-gray-200 mb-4 flex gap-2 items-center text-lg">
-            <Store className="text-blue-500" size={20} /> Buscar Tienda
+          <h2 className="font-display font-bold text-white mb-4 flex gap-2 items-center text-lg tracking-tight">
+            <Store className="text-sky-400" size={20} /> Buscar Tienda
           </h2>
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
-              className="flex-1 px-4 py-3 bg-gray-900 border border-gray-700 text-white rounded-xl text-sm outline-none"
+              className="flex-1 px-4 py-3 bg-white/[0.04] border border-white/10 text-white rounded-2xl text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all placeholder:text-slate-500"
               placeholder="ej: modas-habana"
               value={input}
               onChange={(e) => setInput(e.target.value)}
             />
-            <button className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-500 transition-colors">
+            <button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-2xl hover:from-blue-500 hover:to-indigo-500 transition-all shadow-glow">
               <ArrowRight size={20} />
             </button>
           </form>
           {storesError ? (
             <div className="mt-4 text-center">
-              <p className="text-xs text-gray-400 mb-2">
+              <p className="text-xs text-slate-400 mb-2">
                 No se pudieron cargar las tiendas.
               </p>
               <button
                 onClick={loadLandingData}
-                className="text-xs text-blue-400 font-bold underline"
+                className="text-xs text-sky-400 font-bold underline"
               >
                 Reintentar
               </button>
@@ -1007,7 +1244,7 @@ const LandingPage = () => {
           ) : (
             stores.length > 0 && (
               <div className="mt-4">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Tiendas en el mercado
                 </p>
                 <ul className="space-y-1">
@@ -1015,11 +1252,11 @@ const LandingPage = () => {
                     <li key={s.id}>
                       <button
                         onClick={() => navigate(`/${storeSlug(s)}`)}
-                        className="w-full text-left text-sm text-blue-400 hover:text-blue-300 font-bold py-1.5 flex items-center justify-between gap-2"
+                        className="w-full text-left text-sm text-sky-400 hover:text-sky-300 font-bold py-1.5 flex items-center justify-between gap-2"
                       >
                         <span className="truncate">{s.name}</span>
                         {s.province_name && (
-                          <span className="text-[11px] text-gray-500 font-normal shrink-0">
+                          <span className="text-[11px] text-slate-500 font-normal shrink-0">
                             {s.province_name}
                           </span>
                         )}
@@ -1034,13 +1271,13 @@ const LandingPage = () => {
 
         {/* --- VENDE TU TIENDA --- */}
         <Card className="p-6 border-t-4 border-emerald-600">
-          <h2 className="font-bold text-white mb-1 text-lg">
+          <h2 className="font-display font-bold text-white mb-1 text-lg tracking-tight">
             Pon tu tienda en toda Cuba
           </h2>
-          <p className="text-sm text-gray-400 mb-4">
+          <p className="text-sm text-slate-400 mb-4">
             Tus productos frente a compradores de toda la isla.
           </p>
-          <ul className="space-y-2 text-sm text-gray-300 mb-5">
+          <ul className="space-y-2 text-sm text-slate-300 mb-5">
             <li className="flex gap-2">
               <CheckCircle size={16} className="text-emerald-400 shrink-0 mt-0.5" />
               Tu tienda con su propio enlace, lista para compartir
@@ -1063,25 +1300,26 @@ const LandingPage = () => {
               href={licenseUrl}
               target="_blank"
               rel="noreferrer"
-              className="w-full bg-emerald-600 text-white py-3.5 rounded-xl text-sm font-bold hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 text-center"
+              className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green"
             >
               <MessageCircle size={18} /> Solicitar licencia
             </a>
           ) : (
             <button
               disabled
-              className="w-full bg-emerald-600/40 text-white/60 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
+              className="w-full bg-emerald-600/40 text-white/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
             >
               <MessageCircle size={18} /> Cargando contacto...
             </button>
           )}
-          <p className="text-xs text-gray-500 mt-3 text-center">
+          <p className="text-xs text-slate-500 mt-3 text-center">
             Precio y duración: consúltalos por WhatsApp.
           </p>
         </Card>
+        </div>
 
         {/* --- PIE --- */}
-        <footer className="text-center space-y-2 pt-2 pb-4">
+        <footer className="text-center space-y-2 pt-6 pb-4 border-t border-white/5">
           <p className="text-xs text-gray-500 font-bold">
             {APP_NAME} — de cubanos para cubanos 🇨🇺
           </p>
@@ -1158,14 +1396,14 @@ const StoreFrontend = () => {
 
   if (loadingStore) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-4 p-4 animate-fade-in">
-        <Loader2 className="animate-spin text-blue-500" size={40} />
-        <p className="text-gray-400 text-sm font-bold">Cargando tienda...</p>
+      <div className="min-h-screen bg-[#070B14] flex flex-col items-center justify-center gap-4 p-4 animate-fade-in">
+        <Loader2 className="animate-spin text-sky-400" size={40} />
+        <p className="text-slate-400 text-sm font-bold">Cargando tienda...</p>
         <div className="w-full max-w-md space-y-3 mt-4">
-          <div className="h-10 bg-gray-800 rounded-xl animate-pulse" />
+          <div className="h-10 bg-white/[0.04] rounded-2xl animate-pulse" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="aspect-square bg-gray-800 rounded-xl animate-pulse" />
-            <div className="aspect-square bg-gray-800 rounded-xl animate-pulse" />
+            <div className="aspect-square bg-white/[0.04] rounded-2xl animate-pulse" />
+            <div className="aspect-square bg-white/[0.04] rounded-2xl animate-pulse" />
           </div>
         </div>
       </div>
@@ -1174,13 +1412,13 @@ const StoreFrontend = () => {
 
   if (storeError || !data || !data.store) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#070B14] flex items-center justify-center p-4">
         <Card className="p-8 max-w-sm w-full text-center space-y-4">
-          <Store className="text-gray-600 mx-auto" size={48} />
-          <h2 className="text-xl font-bold text-white">
+          <Store className="text-slate-600 mx-auto" size={48} />
+          <h2 className="font-display text-xl font-bold text-white">
             Tienda no encontrada
           </h2>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-slate-400">
             Esta tienda no existe o ya no está disponible.
           </p>
           <Button onClick={() => navigate("/")} className="w-full">
@@ -1217,8 +1455,8 @@ const StoreFrontend = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 pb-20">
-      <div className="sticky top-0 bg-gray-900/95 backdrop-blur-md z-30 px-4 py-3 border-b border-gray-800 flex items-center gap-3 shadow-lg">
+    <div className="min-h-screen bg-[#070B14] pb-20">
+      <div className="sticky top-0 bg-[#070B14]/95 backdrop-blur-md z-30 px-4 py-3 border-b border-white/10 flex items-center gap-3 shadow-lg">
         <button
           onClick={() => navigate("/")}
           className="p-2 -ml-2 rounded-full hover:bg-gray-800 text-gray-400"
@@ -1226,11 +1464,11 @@ const StoreFrontend = () => {
           <ChevronLeft />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-lg truncate text-white">
+          <h1 className="font-display font-bold text-lg truncate text-white">
             {store.name}
           </h1>
         </div>
-        <div className="w-10 h-10 rounded-full border-2 border-gray-700 bg-gray-800 overflow-hidden">
+        <div className="w-10 h-10 rounded-full ring-2 ring-white/10 bg-slate-800 overflow-hidden">
           <SafeImage
             src={store.logo_url}
             className="w-full h-full object-cover"
@@ -1271,7 +1509,7 @@ const StoreFrontend = () => {
             )}
             target="_blank"
             rel="noreferrer"
-            className="w-full bg-green-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-green-500 transition-all flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
           >
             <MessageCircle size={18} /> Escribir a la tienda
           </a>
@@ -1279,7 +1517,7 @@ const StoreFrontend = () => {
       )}
       <div className="p-4">
         <input
-          className="w-full pl-4 py-3 rounded-xl border border-gray-700 bg-gray-800 text-white outline-none"
+          className="w-full pl-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-white outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all placeholder:text-slate-500"
           placeholder="Buscar productos..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -1300,11 +1538,11 @@ const StoreFrontend = () => {
           <div
             key={p.id}
             onClick={() => setDetailProduct(p)}
-            className="bg-gray-800 rounded-xl overflow-hidden shadow-lg border border-gray-700 flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
+            className="group bg-white/[0.04] rounded-3xl overflow-hidden shadow-xl border border-white/10 flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-white/20 active:scale-[0.98]"
           >
             <ImageGallery imagesStr={p.image_url} />
             <div className="p-3 flex-1 flex flex-col">
-              <h3 className="text-sm font-medium text-gray-200 line-clamp-2 mb-2">
+              <h3 className="text-sm font-bold text-slate-100 line-clamp-2 mb-2">
                 {p.name}
               </h3>
               <div className="mt-auto flex flex-col gap-1.5">
@@ -1315,7 +1553,7 @@ const StoreFrontend = () => {
                     </span>
                   )}
                   {Number(p.price_usd) > 0 && (
-                    <span className="font-bold text-emerald-400 text-xs bg-emerald-900/30 px-1.5 py-0.5 rounded ml-auto">
+                    <span className="font-bold text-emerald-400 text-xs bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-lg ml-auto">
                       {formatPrice(p.price_usd, "USD")}
                     </span>
                   )}
@@ -1325,7 +1563,7 @@ const StoreFrontend = () => {
                     e.stopPropagation();
                     contact(p);
                   }}
-                  className="w-full mt-1 bg-blue-600 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
+                  className="w-full mt-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-glow"
                 >
                   <MessageCircle size={14} /> Pedir
                 </button>
@@ -1336,14 +1574,14 @@ const StoreFrontend = () => {
       </div>
       {filtered.length > 0 && (
         <div className="px-4 pb-4 text-center space-y-3">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-slate-500">
             Mostrando {Math.min(visibleCount, filtered.length)} de{" "}
             {filtered.length} productos
           </p>
           {visibleCount < filtered.length && (
             <button
               onClick={() => setVisibleCount((c) => c + 12)}
-              className="bg-gray-800 text-gray-200 px-6 py-3 rounded-xl text-sm font-bold border border-gray-700 hover:bg-gray-700 transition-all"
+              className="bg-white/[0.04] text-slate-200 px-6 py-3 rounded-2xl text-sm font-bold border border-white/10 hover:bg-white/10 transition-all"
             >
               Cargar más
             </button>

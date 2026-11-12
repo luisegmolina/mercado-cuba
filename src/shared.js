@@ -97,9 +97,9 @@ export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) =>
   if (!src || error) {
     return (
       <div
-        className={`bg-gray-800 flex items-center justify-center border border-gray-700 ${className}`}
+        className={`bg-slate-800 flex items-center justify-center border border-white/5 ${className}`}
       >
-        <Icon className="text-gray-600 opacity-50" size="40%" />
+        <Icon className="text-slate-600 opacity-50" size="40%" />
       </div>
     );
   }
@@ -149,11 +149,11 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
     >
       <div className="min-h-full flex items-start sm:items-center justify-center sm:p-4">
         <div
-          className="bg-gray-800 w-full max-w-md sm:rounded-2xl overflow-hidden border border-gray-700 shadow-2xl my-0 sm:my-8"
+          className="bg-[#0F172A] w-full max-w-md sm:rounded-[2rem] overflow-hidden ring-1 ring-white/10 shadow-2xl my-0 sm:my-8"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Galería */}
-          <div className="relative bg-gray-900">
+          <div className="relative bg-slate-900">
             <div className="aspect-square overflow-hidden">
               <SafeImage
                 src={imgs[idx]}
@@ -162,7 +162,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
             </div>
             <button
               onClick={onClose}
-              className="absolute top-2 left-2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80"
+              className="absolute top-2 left-2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 backdrop-blur"
               aria-label="Cerrar"
             >
               <X size={18} />
@@ -171,32 +171,34 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               <>
                 <button
                   onClick={prev}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 backdrop-blur"
                   aria-label="Foto anterior"
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
                   onClick={next}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 text-white p-2 rounded-full hover:bg-black/80 backdrop-blur"
                   aria-label="Foto siguiente"
                 >
                   <ChevronRight size={20} />
                 </button>
-                <span className="absolute top-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-full">
+                <span className="absolute top-2 right-2 bg-black/60 text-white text-xs font-bold px-2 py-1 rounded-full backdrop-blur">
                   {idx + 1} / {imgs.length}
                 </span>
               </>
             )}
           </div>
           {imgs.length > 1 && (
-            <div className="flex gap-2 p-3 overflow-x-auto bg-gray-900">
+            <div className="flex gap-2 p-3 overflow-x-auto bg-slate-900">
               {imgs.map((src, i) => (
                 <button
                   key={i}
                   onClick={() => setIdx(i)}
-                  className={`w-16 h-16 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-                    i === idx ? "border-blue-500" : "border-gray-700"
+                  className={`w-16 h-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                    i === idx
+                      ? "border-sky-400 ring-2 ring-sky-400/30"
+                      : "border-white/10"
                   }`}
                 >
                   <SafeImage
@@ -209,38 +211,42 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
           )}
 
           {/* Datos del producto */}
-          <div className="p-4 space-y-2">
-            <h2 className="text-lg font-black text-white leading-snug">
+          <div className="p-5 space-y-2">
+            <h2 className="font-display text-xl font-extrabold text-white leading-snug">
               {product.name}
             </h2>
-            <p className="text-base font-black text-blue-400">
+            <p className="text-lg font-black bg-gradient-to-r from-sky-400 to-emerald-300 bg-clip-text text-transparent">
               {priceLabel(product)}
             </p>
             {product.category && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-slate-400">
                 Categoría: {product.category}
               </p>
             )}
             {stock !== undefined && stock !== null && stock !== "" && (
-              <p
-                className={`text-xs font-bold ${
-                  Number(stock) === 0 ? "text-red-400" : "text-emerald-400"
-                }`}
-              >
-                {Number(stock) === 0
-                  ? "Agotado"
-                  : Number(stock) <= 5
-                    ? `Quedan ${stock}`
-                    : "Disponible"}
+              <p>
+                <span
+                  className={`inline-flex items-center text-xs font-bold px-2.5 py-1 rounded-full ${
+                    Number(stock) === 0
+                      ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  }`}
+                >
+                  {Number(stock) === 0
+                    ? "Agotado"
+                    : Number(stock) <= 5
+                      ? `Quedan ${stock}`
+                      : "Disponible"}
+                </span>
               </p>
             )}
             {product.description && (
-              <p className="text-sm text-gray-300 leading-relaxed">
+              <p className="text-sm text-slate-300 leading-relaxed">
                 {product.description}
               </p>
             )}
             {storeName && (
-              <p className="text-xs text-gray-500 flex items-center gap-1 pt-1">
+              <p className="text-xs text-slate-500 flex items-center gap-1 pt-1">
                 <Store size={12} className="shrink-0" /> {storeName}
                 {province && (
                   <>
@@ -265,7 +271,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                   )}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full bg-green-600 text-white py-3.5 rounded-xl text-sm font-bold hover:bg-green-500 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
                 >
                   <MessageCircle size={18} /> Pedir por WhatsApp
                 </a>
@@ -276,7 +282,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                     onClose();
                     navigate(`/${storeSlug}`);
                   }}
-                  className="w-full bg-gray-700 text-white py-3 rounded-xl text-sm font-bold hover:bg-gray-600 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-white/[0.06] border border-white/10 text-white py-3 rounded-2xl text-sm font-bold hover:bg-white/10 transition-all flex items-center justify-center gap-2"
                 >
                   <Store size={16} /> Ver tienda
                 </button>
