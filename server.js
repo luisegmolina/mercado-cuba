@@ -401,7 +401,7 @@ app.get("/api/public/rates", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT currency, rate_cup, source, updated_at FROM exchange_rates
-       ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 ELSE 3 END`,
+       ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 WHEN 'CAD' THEN 3 WHEN 'MXN' THEN 4 WHEN 'ZELLE' THEN 5 WHEN 'CLA' THEN 6 ELSE 7 END`,
     );
     res.json({ rates: result.rows });
   } catch (err) {
@@ -412,7 +412,7 @@ app.get("/api/public/rates", async (req, res) => {
 app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
   if (req.user.role !== "superadmin")
     return res.status(403).json({ error: "Admin" });
-  const allowed = ["USD", "EUR", "MLC"];
+  const allowed = ["USD", "EUR", "MLC", "CAD", "MXN", "ZELLE", "CLA"];
   const rates = Array.isArray(req.body.rates) ? req.body.rates : [];
   const clean = [];
   for (const r of rates) {
@@ -448,7 +448,7 @@ app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
     });
     const result = await pool.query(
       `SELECT currency, rate_cup, source, updated_at FROM exchange_rates
-       ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 ELSE 3 END`,
+       ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 WHEN 'CAD' THEN 3 WHEN 'MXN' THEN 4 WHEN 'ZELLE' THEN 5 WHEN 'CLA' THEN 6 ELSE 7 END`,
     );
     res.json({ rates: result.rows });
   } catch (err) {

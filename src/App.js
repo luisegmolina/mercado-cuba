@@ -2894,6 +2894,10 @@ const SuperAdminPanel = () => {
     USD: "",
     EUR: "",
     MLC: "",
+    CAD: "",
+    MXN: "",
+    ZELLE: "",
+    CLA: "",
   });
   const [ratesLoaded, setRatesLoaded] = useState(false);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState(null);
@@ -2904,7 +2908,7 @@ const SuperAdminPanel = () => {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d || !Array.isArray(d.rates)) return;
-        const next = { USD: "", EUR: "", MLC: "" };
+        const next = { USD: "", EUR: "", MLC: "", CAD: "", MXN: "", ZELLE: "", CLA: "" };
         let latest = null;
         for (const row of d.rates) {
           if (row.currency in next)
@@ -2921,7 +2925,7 @@ const SuperAdminPanel = () => {
 
   const saveRates = async (e) => {
     e.preventDefault();
-    const rates = ["USD", "EUR", "MLC"]
+    const rates = ["USD", "EUR", "MLC", "CAD", "MXN", "ZELLE", "CLA"]
       .map((currency) => ({
         currency,
         rate_cup: Number(String(ratesForm[currency]).replace(",", ".")),
@@ -3374,7 +3378,7 @@ const SuperAdminPanel = () => {
               )}
             </p>
             <form onSubmit={saveRates} className="space-y-3">
-              {["USD", "EUR", "MLC"].map((currency) => (
+              {["USD", "EUR", "MLC", "CAD", "MXN", "ZELLE", "CLA"].map((currency) => (
                 <label key={currency} className="block">
                   <span className="block text-[11px] font-bold uppercase text-slate-400">
                     1 {currency} en CUP
