@@ -46,6 +46,10 @@ const GlobalMarketplace = () => {
   // Estado crucial: Si es null, mostramos el selector. Si tiene ID, mostramos productos.
   // id "all" = todas las provincias (endpoint /public/all-products).
   const [selectedProvince, setSelectedProvince] = useState(null);
+  // Municipio dentro de la provincia elegida (null = todos). Solo se
+  // muestra cuando la provincia es concreta, no con "Todas".
+  const [municipalities, setMunicipalities] = useState([]);
+  const [selectedMunicipality, setSelectedMunicipality] = useState(null);
   const [filterText, setFilterText] = useState("");
 
   const navigate = useNavigate();
@@ -84,16 +88,18 @@ const GlobalMarketplace = () => {
     startOffset = 0,
     append = false,
     query = filterText,
+    municipality = selectedMunicipality,
   ) => {
     setLoading(true);
     setLoadError(null);
     try {
       const q = (query || "").trim();
       const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
+      const mParam = municipality ? `&municipality=${municipality.id}` : "";
       const url =
         province.id === "all"
-          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}`
-          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}`;
+          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}`
+          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
@@ -134,6 +140,17 @@ const GlobalMarketplace = () => {
         province.id === "all"
           ? all
           : all.filter((s) => s.province_id === province.id);
+      // Organizadas por municipio (alfabético; sin municipio al final)
+      // y dentro de cada municipio por nombre.
+      list.sort((a, b) => {
+        const ma = a.municipality_name || "";
+        const mb = b.municipality_name || "";
+        if (!ma && mb) return 1;
+        if (ma && !mb) return -1;
+        return (
+          ma.localeCompare(mb) || (a.name || "").localeCompare(b.name || "")
+        );
+      });
       setStores(list);
     } catch (err) {
       console.error(err);
@@ -147,6 +164,8 @@ const GlobalMarketplace = () => {
   const handleSelectProvince = (provinceId, provinceName) => {
     const province = { id: provinceId, name: provinceName };
     setSelectedProvince(province);
+    setSelectedMunicipality(null);
+    setMunicipalities([]);
     setFilterText("");
     setOffset(0);
     setHasMore(false);
@@ -156,6 +175,40 @@ const GlobalMarketplace = () => {
     setView("stores");
     setStores([]);
     loadStores(province);
+    if (provinceId !== "all") loadMunicipalities(provinceId);
+  };
+
+  // Municipios de la provincia elegida (para el filtro de Explorar).
+  const loadMunicipalities = async (provinceId) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/public/municipalities?province_id=${provinceId}`,
+      );
+      if (!res.ok) throw new Error("No se pudieron cargar los municipios");
+      const data = await res.json();
+      setMunicipalities(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setMunicipalities([]);
+    }
+  };
+
+  // Elegir municipio: las tiendas se filtran en local (filteredStores)
+  // y los productos se vuelven a pedir solo si ya estaban cargados.
+  const handleSelectMunicipality = (municipalityId, municipalityName) => {
+    const municipality =
+      municipalityId === "all"
+        ? null
+        : { id: municipalityId, name: municipalityName };
+    setSelectedMunicipality(municipality);
+    setFilterText("");
+    setOffset(0);
+    setHasMore(false);
+    setTotalProducts(null);
+    setProducts([]);
+    if (view === "products" && productsLoaded && selectedProvince) {
+      loadProducts(selectedProvince, 0, false, "", municipality);
+    }
   };
 
   // Cambiar entre Tiendas y Productos. Los productos se cargan la primera
@@ -175,6 +228,8 @@ const GlobalMarketplace = () => {
 
   const handleBackToSelector = () => {
     setSelectedProvince(null);
+    setSelectedMunicipality(null);
+    setMunicipalities([]);
     setProducts([]);
     setFilterText("");
     setLoadError(null);
@@ -212,13 +267,19 @@ const GlobalMarketplace = () => {
       (p.store_name || "").toLowerCase().includes(filterText.toLowerCase()),
   );
 
-  // Tiendas filtradas por el buscador (nombre o provincia).
+  // Tiendas filtradas por municipio y por el buscador (nombre, provincia
+  // o municipio).
   const filteredStores = (Array.isArray(stores) ? stores : []).filter(
     (s) =>
-      (s.name || "").toLowerCase().includes(filterText.toLowerCase()) ||
-      (s.province_name || "")
-        .toLowerCase()
-        .includes(filterText.toLowerCase()),
+      (!selectedMunicipality ||
+        s.municipality_id === selectedMunicipality.id) &&
+      ((s.name || "").toLowerCase().includes(filterText.toLowerCase()) ||
+        (s.province_name || "")
+          .toLowerCase()
+          .includes(filterText.toLowerCase()) ||
+        (s.municipality_name || "")
+          .toLowerCase()
+          .includes(filterText.toLowerCase())),
   );
 
   // --- VISTA DE CARGA INICIAL (Solo carga provincias) ---
@@ -332,7 +393,9 @@ const GlobalMarketplace = () => {
               onClick={handleBackToSelector}
               className="text-xs text-cyan-700 flex items-center gap-1 mt-1 font-bold hover:underline"
             >
-              <MapPin size={10} /> {selectedProvince.name} (Cambiar)
+              <MapPin size={10} /> {selectedProvince.name}
+              {selectedMunicipality ? ` · ${selectedMunicipality.name}` : ""}{" "}
+              (Cambiar)
             </button>
           </div>
         </div>
@@ -357,6 +420,28 @@ const GlobalMarketplace = () => {
           />
         </div>
       </div>
+
+      {/* Filtro por municipio (solo con provincia concreta) */}
+      {selectedProvince.id !== "all" && municipalities.length > 0 && (
+        <div className="px-4 pb-1">
+          <select
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+            value={selectedMunicipality?.id || "all"}
+            onChange={(e) => {
+              const id = e.target.value;
+              const mun = municipalities.find((m) => m.id === id);
+              handleSelectMunicipality(id, mun ? mun.name : "");
+            }}
+          >
+            <option value="all">Todos los municipios</option>
+            {municipalities.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Tiendas / Productos */}
       <div className="px-4 pb-2">
@@ -437,7 +522,9 @@ const GlobalMarketplace = () => {
                       </h3>
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                         <MapPin size={12} />{" "}
-                        {s.province_name || selectedProvince.name}
+                        {s.municipality_name
+                          ? `${s.municipality_name}, ${s.province_name || selectedProvince.name}`
+                          : s.province_name || selectedProvince.name}
                       </p>
                       {s.description ? (
                         <p className="text-xs text-slate-500 line-clamp-1 mt-1">
@@ -463,7 +550,9 @@ const GlobalMarketplace = () => {
                 <p className="text-sm">
                   No hay tiendas en{" "}
                   <span className="text-cyan-700 font-bold">
-                    {selectedProvince.name}
+                    {selectedMunicipality
+                      ? `${selectedMunicipality.name}, ${selectedProvince.name}`
+                      : selectedProvince.name}
                   </span>
                   .
                 </p>

@@ -268,9 +268,10 @@ const PUBLIC_STORE_CONDITION = `s.is_public AND NOT s.is_suspended AND EXISTS (
 // Tienda con nombre del dueño y de la provincia (lo que usa el frontend).
 const fetchStoreFull = async (storeId) => {
   const r = await pool.query(
-    `SELECT s.*, u.owner_name, u.whatsapp AS owner_whatsapp, p.name AS province_name
+    `SELECT s.*, u.owner_name, u.whatsapp AS owner_whatsapp, p.name AS province_name, m.name AS municipality_name
      FROM stores s JOIN users u ON u.id = s.owner_id
-     LEFT JOIN provinces p ON p.id = s.province_id WHERE s.id = $1`,
+     LEFT JOIN provinces p ON p.id = s.province_id
+     LEFT JOIN municipalities m ON m.id = s.municipality_id WHERE s.id = $1`,
     [storeId],
   );
   return r.rows[0] || null;
@@ -280,9 +281,10 @@ const fetchStoreFull = async (storeId) => {
 // que muestra el panel del vendedor mientras no haya selector multi-tienda).
 const fetchStoresOfUser = async (userId) => {
   const r = await pool.query(
-    `SELECT s.*, u.owner_name, u.whatsapp AS owner_whatsapp, p.name AS province_name
+    `SELECT s.*, u.owner_name, u.whatsapp AS owner_whatsapp, p.name AS province_name, m.name AS municipality_name
      FROM stores s JOIN users u ON u.id = s.owner_id
      LEFT JOIN provinces p ON p.id = s.province_id
+     LEFT JOIN municipalities m ON m.id = s.municipality_id
      WHERE s.owner_id = $1 ORDER BY s.created_at ASC`,
     [userId],
   );
@@ -329,12 +331,16 @@ const fetchProductsOfStore = async (storeId, onlyVisible = false) => {
 
 // Listado público de productos con conteo total y búsqueda por texto
 // (?q=). El ILIKE '%...%' usa los índices trigram (pg_trgm).
-const listPublicProducts = async ({ provinceId = null, limit, offset, q = null }) => {
+const listPublicProducts = async ({ provinceId = null, municipalityId = null, limit, offset, q = null }) => {
   const where = [PUBLIC_STORE_CONDITION, "p.is_visible"];
   const params = [];
   if (provinceId) {
     params.push(provinceId);
     where.push(`s.province_id = $${params.length}`);
+  }
+  if (municipalityId) {
+    params.push(municipalityId);
+    where.push(`s.municipality_id = $${params.length}`);
   }
   if (q) {
     params.push(q);
@@ -349,13 +355,14 @@ const listPublicProducts = async ({ provinceId = null, limit, offset, q = null }
   const oi = itemsParams.length;
   const items = await pool.query(
     `SELECT p.*, COALESCE(json_agg(pi.url ORDER BY pi.position) FILTER (WHERE pi.url IS NOT NULL), '[]') AS images,
-            s.name AS store_name, s.whatsapp AS store_whatsapp, s.slug AS store_slug, prov.name AS store_province
+            s.name AS store_name, s.whatsapp AS store_whatsapp, s.slug AS store_slug, prov.name AS store_province, mun.name AS store_municipality
      FROM products p
      JOIN stores s ON p.store_id = s.id
      LEFT JOIN provinces prov ON s.province_id = prov.id
+     LEFT JOIN municipalities mun ON s.municipality_id = mun.id
      LEFT JOIN product_images pi ON pi.product_id = p.id
      WHERE ${whereSql}
-     GROUP BY p.id, s.id, prov.id
+     GROUP BY p.id, s.id, prov.id, mun.id
      ORDER BY p.created_at DESC LIMIT $${li} OFFSET $${oi}`,
     itemsParams,
   );
@@ -505,7 +512,12 @@ app.get("/api/public/all-products", async (req, res, next) => {
       req.query.q && String(req.query.q).trim()
         ? String(req.query.q).trim()
         : null;
-    const result = await listPublicProducts({ limit, offset, q });
+    const municipalityId = req.query.municipality
+      ? String(req.query.municipality)
+      : null;
+    if (municipalityId && !UUID_REGEX.test(municipalityId))
+      return res.status(400).json({ error: "Municipio no válido" });
+    const result = await listPublicProducts({ limit, offset, q, municipalityId });
     res.json(result);
   } catch (err) {
     next(err);
@@ -561,10 +573,11 @@ app.get("/api/public/landing", async (req, res, next) => {
 app.get("/api/public/stores", async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id, s.created_at,
-              p.name AS province_name
+      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id, s.municipality_id, s.created_at,
+              p.name AS province_name, m.name AS municipality_name
        FROM stores s
        LEFT JOIN provinces p ON p.id = s.province_id
+       LEFT JOIN municipalities m ON m.id = s.municipality_id
        WHERE ${PUBLIC_STORE_CONDITION}
        ORDER BY s.created_at DESC`,
     );
@@ -579,14 +592,16 @@ app.get("/api/store/:identifier", async (req, res, next) => {
     const { identifier } = req.params;
     const isUUID = UUID_REGEX.test(identifier);
     const query = isUUID
-      ? `SELECT s.*, u.owner_name, p.name AS province_name,
+      ? `SELECT s.*, u.owner_name, p.name AS province_name, m.name AS municipality_name,
                 (SELECT valid_until FROM store_licenses WHERE store_id = s.id ORDER BY valid_until DESC LIMIT 1) AS license_valid_until
          FROM stores s JOIN users u ON u.id = s.owner_id
-         LEFT JOIN provinces p ON p.id = s.province_id WHERE s.id = $1`
-      : `SELECT s.*, u.owner_name, p.name AS province_name,
+         LEFT JOIN provinces p ON p.id = s.province_id
+         LEFT JOIN municipalities m ON m.id = s.municipality_id WHERE s.id = $1`
+      : `SELECT s.*, u.owner_name, p.name AS province_name, m.name AS municipality_name,
                 (SELECT valid_until FROM store_licenses WHERE store_id = s.id ORDER BY valid_until DESC LIMIT 1) AS license_valid_until
          FROM stores s JOIN users u ON u.id = s.owner_id
-         LEFT JOIN provinces p ON p.id = s.province_id WHERE s.slug = $1`;
+         LEFT JOIN provinces p ON p.id = s.province_id
+         LEFT JOIN municipalities m ON m.id = s.municipality_id WHERE s.slug = $1`;
 
     const storeRes = await pool.query(query, [identifier]);
     if (storeRes.rows.length === 0)
@@ -1076,6 +1091,7 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
     whatsapp,
     is_public,
     province_id,
+    municipality_id,
     store_id,
   } = req.body;
 
@@ -1106,23 +1122,62 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
   ) {
     return res.status(400).json({ error: "Provincia no válida" });
   }
+  if (
+    municipality_id !== undefined &&
+    municipality_id !== null &&
+    municipality_id !== "" &&
+    !UUID_REGEX.test(String(municipality_id))
+  ) {
+    return res.status(400).json({ error: "Municipio no válido" });
+  }
 
   try {
     const store = await resolveVendorStore(req.user.id, store_id);
     if (!store)
       return res.status(404).json({ error: "Tienda no encontrada" });
 
+    // Valores efectivos: si el campo no viene, se conserva el actual;
+    // si viene vacío, se limpia (el municipio es opcional).
+    const finalProvinceId =
+      province_id === undefined
+        ? store.province_id
+        : province_id === ""
+          ? null
+          : province_id;
+    const finalMunicipalityId =
+      municipality_id === undefined
+        ? store.municipality_id
+        : municipality_id === ""
+          ? null
+          : municipality_id;
+    // El municipio, si se elige, tiene que pertenecer a la provincia elegida.
+    if (finalMunicipalityId) {
+      if (!finalProvinceId)
+        return res.status(400).json({ error: "Elige primero la provincia" });
+      const munRes = await pool.query(
+        "SELECT province_id FROM municipalities WHERE id = $1",
+        [finalMunicipalityId],
+      );
+      if (munRes.rows.length === 0)
+        return res.status(400).json({ error: "Municipio no válido" });
+      if (munRes.rows[0].province_id !== finalProvinceId)
+        return res
+          .status(400)
+          .json({ error: "El municipio no pertenece a esa provincia" });
+    }
+
     await pool.query(
       `UPDATE stores
-       SET name = $1, description = $2, logo_url = $3, whatsapp = $4, is_public = $5, province_id = $6
-       WHERE id = $7`,
+       SET name = $1, description = $2, logo_url = $3, whatsapp = $4, is_public = $5, province_id = $6, municipality_id = $7
+       WHERE id = $8`,
       [
         String(name).trim(),
         description || null,
         logoUrl && String(logoUrl).trim() ? String(logoUrl).trim() : null,
         normalizedWhatsapp,
         is_public !== undefined ? !!is_public : store.is_public,
-        province_id === "" ? null : province_id || null,
+        finalProvinceId,
+        finalMunicipalityId,
         store.id,
       ],
     );
@@ -1143,7 +1198,173 @@ app.get("/api/public/provinces", async (req, res, next) => {
   }
 });
 
+// Municipios de una provincia (para el selector de Ajustes y el filtro
+// de Explorar). La provincia es obligatoria: sin ella no hay municipio.
+app.get("/api/public/municipalities", async (req, res, next) => {
+  try {
+    const { province_id } = req.query;
+    if (!province_id || !UUID_REGEX.test(String(province_id)))
+      return res.status(400).json({ error: "Provincia no válida" });
+    const result = await pool.query(
+      "SELECT id, province_id, name FROM municipalities WHERE province_id = $1 ORDER BY name ASC",
+      [province_id],
+    );
+    res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- ADMIN ROUTES ---
+
+// Ubicación: el superadmin agrega y quita provincias y municipios
+// (datos que cambian con el tiempo). No se puede borrar una provincia
+// con municipios o tiendas, ni un municipio con tiendas: el servidor
+// lo rechaza con 409 y el panel muestra el motivo.
+app.post("/api/admin/provinces", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Requiere SuperAdmin" });
+  const name = req.body.name && String(req.body.name).trim();
+  if (!name)
+    return res.status(400).json({ error: "El nombre es obligatorio" });
+  try {
+    const result = await pool.query(
+      "INSERT INTO provinces (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *",
+      [name],
+    );
+    if (result.rows.length === 0)
+      return res.status(409).json({ error: "Esa provincia ya existe" });
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: "province_create",
+      target_type: "province",
+      target_id: result.rows[0].id,
+      details: { name },
+    });
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete("/api/admin/provinces/:id", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Requiere SuperAdmin" });
+  try {
+    const id = req.params.id;
+    const prov = await pool.query(
+      "SELECT id, name FROM provinces WHERE id = $1",
+      [id],
+    );
+    if (prov.rows.length === 0)
+      return res.status(404).json({ error: "Provincia no encontrada" });
+    const mun = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM municipalities WHERE province_id = $1",
+      [id],
+    );
+    if (mun.rows[0].n > 0)
+      return res.status(409).json({
+        error: `La provincia tiene ${mun.rows[0].n} municipio(s); elimínalos primero`,
+      });
+    const st = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM stores WHERE province_id = $1",
+      [id],
+    );
+    if (st.rows[0].n > 0)
+      return res.status(409).json({
+        error: `Hay ${st.rows[0].n} tienda(s) en esa provincia`,
+      });
+    await pool.query("DELETE FROM provinces WHERE id = $1", [id]);
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: "province_delete",
+      target_type: "province",
+      target_id: id,
+      details: { name: prov.rows[0].name },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/api/admin/municipalities", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Requiere SuperAdmin" });
+  const name = req.body.name && String(req.body.name).trim();
+  const province_id = req.body.province_id && String(req.body.province_id);
+  if (!name)
+    return res.status(400).json({ error: "El nombre es obligatorio" });
+  if (!province_id || !UUID_REGEX.test(province_id))
+    return res.status(400).json({ error: "Provincia no válida" });
+  try {
+    const prov = await pool.query(
+      "SELECT id FROM provinces WHERE id = $1",
+      [province_id],
+    );
+    if (prov.rows.length === 0)
+      return res.status(404).json({ error: "Provincia no encontrada" });
+    const result = await pool.query(
+      "INSERT INTO municipalities (province_id, name) VALUES ($1, $2) ON CONFLICT (province_id, name) DO NOTHING RETURNING *",
+      [province_id, name],
+    );
+    if (result.rows.length === 0)
+      return res
+        .status(409)
+        .json({ error: "Ese municipio ya existe en esa provincia" });
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: "municipality_create",
+      target_type: "municipality",
+      target_id: result.rows[0].id,
+      details: { name, province_id },
+    });
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete("/api/admin/municipalities/:id", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Requiere SuperAdmin" });
+  try {
+    const id = req.params.id;
+    const mun = await pool.query(
+      "SELECT id, name, province_id FROM municipalities WHERE id = $1",
+      [id],
+    );
+    if (mun.rows.length === 0)
+      return res.status(404).json({ error: "Municipio no encontrado" });
+    const st = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM stores WHERE municipality_id = $1",
+      [id],
+    );
+    if (st.rows[0].n > 0)
+      return res.status(409).json({
+        error: `Hay ${st.rows[0].n} tienda(s) en ese municipio`,
+      });
+    await pool.query("DELETE FROM municipalities WHERE id = $1", [id]);
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: "municipality_delete",
+      target_type: "municipality",
+      target_id: id,
+      details: {
+        name: mun.rows[0].name,
+        province_id: mun.rows[0].province_id,
+      },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get("/api/admin/dashboard", authenticateToken, async (req, res, next) => {
   if (req.user.role !== "superadmin")
     return res.status(403).json({ error: "Requiere SuperAdmin" });
@@ -1695,6 +1916,12 @@ app.get("/api/public/products/province/:id", async (req, res, next) => {
   if (!UUID_REGEX.test(id)) {
     return res.status(400).json({ error: "Provincia no válida" });
   }
+  const municipalityId = req.query.municipality
+    ? String(req.query.municipality)
+    : null;
+  if (municipalityId && !UUID_REGEX.test(municipalityId)) {
+    return res.status(400).json({ error: "Municipio no válido" });
+  }
   try {
     const { limit, offset } = parsePagination(req);
     const q =
@@ -1703,6 +1930,7 @@ app.get("/api/public/products/province/:id", async (req, res, next) => {
         : null;
     const result = await listPublicProducts({
       provinceId: id,
+      municipalityId,
       limit,
       offset,
       q,

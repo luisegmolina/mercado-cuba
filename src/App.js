@@ -571,6 +571,75 @@ const AppProvider = ({ children }) => {
     }
   };
 
+  // Ubicación: el superadmin agrega y quita provincias y municipios.
+  // El servidor rechaza borrar lo que tenga tiendas o municipios
+  // (409 con el motivo); aquí solo mostramos su mensaje.
+  const createProvince = async (name) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/provinces`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      await loadProvinces();
+      notify("Provincia agregada");
+      return true;
+    } catch (e) {
+      notify(e.message || "Error al agregar la provincia", "error");
+      return false;
+    }
+  };
+
+  const deleteProvince = async (id, name) => {
+    if (!window.confirm(`¿Eliminar la provincia ${name}?`)) return false;
+    try {
+      const res = await fetch(`${API_URL}/admin/provinces/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      await loadProvinces();
+      notify("Provincia eliminada");
+      return true;
+    } catch (e) {
+      notify(e.message || "Error al eliminar la provincia", "error");
+      return false;
+    }
+  };
+
+  const createMunicipality = async (provinceId, name) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/municipalities`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ province_id: provinceId, name }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      notify("Municipio agregado");
+      return true;
+    } catch (e) {
+      notify(e.message || "Error al agregar el municipio", "error");
+      return false;
+    }
+  };
+
+  const deleteMunicipality = async (id, name) => {
+    if (!window.confirm(`¿Eliminar el municipio ${name}?`)) return false;
+    try {
+      const res = await fetch(`${API_URL}/admin/municipalities/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      notify("Municipio eliminado");
+      return true;
+    } catch (e) {
+      notify(e.message || "Error al eliminar el municipio", "error");
+      return false;
+    }
+  };
+
   const extendCode = async (id, days = 365) => {
     try {
       const res = await fetch(`${API_URL}/admin/codes/${id}/extend`, {
@@ -772,6 +841,10 @@ const AppProvider = ({ children }) => {
         extendCode,
         revokeCode,
         grantLicense,
+        createProvince,
+        deleteProvince,
+        createMunicipality,
+        deleteMunicipality,
         logout,
       }}
     >
@@ -1698,6 +1771,10 @@ const StoreFrontend = () => {
     (p.name || "").toLowerCase().includes(filter.toLowerCase()),
   );
   const provinceName = store.province_name || store.province || "";
+  // Ubicación completa: "Municipio, Provincia" cuando hay municipio.
+  const locationName = [store.municipality_name, provinceName]
+    .filter(Boolean)
+    .join(", ");
   const coverImage = firstProductImage(visibleProducts) || CUBA_HERO;
 
   const contact = (p) => {
@@ -1708,7 +1785,7 @@ const StoreFrontend = () => {
           name: p.name,
           prices: priceLabel(p),
           storeName: store.name,
-          province: provinceName,
+          province: locationName,
           slug: store.slug,
         }),
       ),
@@ -1758,15 +1835,15 @@ const StoreFrontend = () => {
             <h2 className="font-display font-extrabold text-2xl text-white leading-tight truncate">
               {cleanName(store.name)}
             </h2>
-            {provinceName && (
+            {locationName && (
               <p className="text-xs text-sky-100 font-medium flex items-center gap-1 mt-0.5">
-                <MapPin size={12} /> {provinceName}
+                <MapPin size={12} /> {locationName}
               </p>
             )}
           </div>
         </div>
       </div>
-      {(store.description || store.owner_name || provinceName) && (
+      {(store.description || store.owner_name || locationName) && (
         <div className="px-4 pt-4">
           <Card className="p-4 space-y-1">
             {store.description && (
@@ -1777,9 +1854,9 @@ const StoreFrontend = () => {
                 Dueño: {store.owner_name}
               </p>
             )}
-            {provinceName && (
+            {locationName && (
               <p className="text-xs text-slate-500 flex items-center gap-1">
-                <MapPin size={12} /> {provinceName}
+                <MapPin size={12} /> {locationName}
               </p>
             )}
             {store.whatsapp && (
@@ -2212,6 +2289,7 @@ const VendorDashboard = () => {
     whatsapp: myStore?.whatsapp || "",
     is_public: myStore?.is_public ?? true,
     province_id: myStore?.province_id || "",
+    municipality_id: myStore?.municipality_id || "",
   });
   // Enlace de foto nueva (opción secundaria: el flujo principal es
   // subir desde el celular/cámara con PhotoUploader; el enlace solo
@@ -2229,8 +2307,38 @@ const VendorDashboard = () => {
       whatsapp: myStore.whatsapp || "",
       is_public: !!myStore.is_public,
       province_id: myStore.province_id || "",
+      municipality_id: myStore.municipality_id || "",
     });
   }, [myStore]);
+
+  // Municipios de la provincia elegida (el campo es opcional: la tienda
+  // puede quedar sin municipio). Se recargan cada vez que cambia la
+  // provincia; si la tienda ya tiene provincia, cargan al abrir Ajustes.
+  const [municipalities, setMunicipalities] = useState([]);
+  useEffect(() => {
+    const provinceId = formS.province_id;
+    if (!provinceId) {
+      setMunicipalities([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_URL}/public/municipalities?province_id=${provinceId}`,
+        );
+        if (!res.ok) throw new Error("No se pudieron cargar los municipios");
+        const data = await res.json();
+        if (!cancelled) setMunicipalities(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setMunicipalities([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [formS.province_id]);
 
   const openModal = (p) => {
     setEditP(p);
@@ -2667,7 +2775,13 @@ const VendorDashboard = () => {
               className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none"
               value={formS.province_id || ""}
               onChange={(e) =>
-                setFormS({ ...formS, province_id: e.target.value })
+                // Cambiar de provincia limpia el municipio: los
+                // municipios pertenecen a una sola provincia.
+                setFormS({
+                  ...formS,
+                  province_id: e.target.value,
+                  municipality_id: "",
+                })
               }
             >
               <option value="" className="text-slate-500">
@@ -2678,6 +2792,26 @@ const VendorDashboard = () => {
               {provinces.map((prov) => (
                 <option key={prov.id} value={prov.id}>
                   {prov.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none disabled:opacity-50"
+              value={formS.municipality_id || ""}
+              disabled={!formS.province_id}
+              onChange={(e) =>
+                setFormS({ ...formS, municipality_id: e.target.value })
+              }
+            >
+              <option value="" className="text-slate-500">
+                {formS.province_id
+                  ? "Municipio (opcional)..."
+                  : "Primero elige la provincia..."}
+              </option>
+              {municipalities.map((mun) => (
+                <option key={mun.id} value={mun.id}>
+                  {mun.name}
                 </option>
               ))}
             </select>
@@ -2860,6 +2994,11 @@ const SuperAdminPanel = () => {
     adminUpdateStoreContact,
     updateSuperAdminContact,
     updateRates,
+    provinces,
+    createProvince,
+    deleteProvince,
+    createMunicipality,
+    deleteMunicipality,
     superAdminContact,
   } = useContext(AppContext);
   const navigate = useNavigate();
@@ -2877,6 +3016,12 @@ const SuperAdminPanel = () => {
   const [storePage, setStorePage] = useState(1);
   const [codeQuery, setCodeQuery] = useState("");
   const [codePage, setCodePage] = useState(1);
+  // Ubicación: provincia elegida para gestionar sus municipios y los
+  // nombres nuevos que el admin está escribiendo.
+  const [locProvinceId, setLocProvinceId] = useState("");
+  const [locMunicipalities, setLocMunicipalities] = useState([]);
+  const [newProvinceName, setNewProvinceName] = useState("");
+  const [newMunicipalityName, setNewMunicipalityName] = useState("");
   // Tasas de cambio (elTOQUE): se cargan del endpoint público y se
   // guardan con PUT /api/admin/rates al pulsar Guardar.
   const [ratesForm, setRatesForm] = useState({
@@ -2935,6 +3080,31 @@ const SuperAdminPanel = () => {
     setAdminContact(superAdminContact);
   }, [superAdminContact]);
 
+  // Ubicación: municipios de la provincia elegida en esta pestaña.
+  // (La función y el efecto van ANTES del return de abajo: los hooks
+  // no pueden llamarse después de un return condicional.)
+  const loadLocMunicipalities = async (provinceId) => {
+    if (!provinceId) {
+      setLocMunicipalities([]);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `${API_URL}/public/municipalities?province_id=${provinceId}`,
+      );
+      if (!res.ok) throw new Error("No se pudieron cargar los municipios");
+      const data = await res.json();
+      setLocMunicipalities(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setLocMunicipalities([]);
+    }
+  };
+  useEffect(() => {
+    loadLocMunicipalities(locProvinceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locProvinceId]);
+
   if (!adminData) return null;
   const { stats, stores, codes } = adminData;
   // Licencias disponibles para conceder a una tienda (sin canjear).
@@ -2981,6 +3151,29 @@ const SuperAdminPanel = () => {
     (codePageSafe - 1) * CODES_PER_PAGE,
     codePageSafe * CODES_PER_PAGE,
   );
+
+  const handleCreateProvince = async (e) => {
+    e.preventDefault();
+    const name = newProvinceName.trim();
+    if (!name) return;
+    if (await createProvince(name)) setNewProvinceName("");
+  };
+
+  const handleCreateMunicipality = async (e) => {
+    e.preventDefault();
+    const name = newMunicipalityName.trim();
+    if (!name || !locProvinceId) return;
+    if (await createMunicipality(locProvinceId, name)) {
+      setNewMunicipalityName("");
+      loadLocMunicipalities(locProvinceId);
+    }
+  };
+
+  const handleDeleteMunicipality = async (mun) => {
+    if (await deleteMunicipality(mun.id, mun.name)) {
+      loadLocMunicipalities(locProvinceId);
+    }
+  };
 
   const handleStoreReset = (e) => {
     e.preventDefault();
@@ -3045,7 +3238,7 @@ const SuperAdminPanel = () => {
         </div>
 
         <div className="flex gap-2">
-          {["stores", "codes", "rates", "sec"].map((t) => (
+          {["stores", "codes", "rates", "loc", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -3057,7 +3250,9 @@ const SuperAdminPanel = () => {
                   ? "Licencias"
                   : t === "rates"
                     ? "Tasas"
-                    : "Seguridad"}
+                    : t === "loc"
+                      ? "Ubicación"
+                      : "Seguridad"}
             </button>
           ))}
         </div>
@@ -3409,6 +3604,110 @@ const SuperAdminPanel = () => {
               </Button>
             </form>
           </Card>
+        )}
+
+        {tab === "loc" && (
+          <div className="space-y-4">
+            <Card className="p-4">
+              <h3 className="font-bold text-slate-900 mb-1">Provincias</h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Agregar o quitar provincias. No se puede borrar una provincia
+                que tenga municipios o tiendas.
+              </p>
+              <form onSubmit={handleCreateProvince} className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  placeholder="Nombre de la provincia..."
+                  value={newProvinceName}
+                  onChange={(e) => setNewProvinceName(e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+                />
+                <Button type="submit">Agregar</Button>
+              </form>
+              <div className="space-y-2">
+                {provinces.map((prov) => (
+                  <div
+                    key={prov.id}
+                    className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2"
+                  >
+                    <span className="text-sm font-bold text-slate-800">
+                      {prov.name}
+                    </span>
+                    <button
+                      onClick={() => deleteProvince(prov.id, prov.name)}
+                      className="text-rose-600 p-1"
+                      title="Eliminar provincia"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="font-bold text-slate-900 mb-1">Municipios</h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Elige la provincia para ver sus municipios. No se puede
+                borrar un municipio que tenga tiendas.
+              </p>
+              <select
+                className="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none mb-3"
+                value={locProvinceId}
+                onChange={(e) => setLocProvinceId(e.target.value)}
+              >
+                <option value="" className="text-slate-500">
+                  Seleccionar provincia...
+                </option>
+                {provinces.map((prov) => (
+                  <option key={prov.id} value={prov.id}>
+                    {prov.name}
+                  </option>
+                ))}
+              </select>
+              {locProvinceId && (
+                <>
+                  <form
+                    onSubmit={handleCreateMunicipality}
+                    className="flex gap-2 mb-3"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Nombre del municipio..."
+                      value={newMunicipalityName}
+                      onChange={(e) => setNewMunicipalityName(e.target.value)}
+                      className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+                    />
+                    <Button type="submit">Agregar</Button>
+                  </form>
+                  <div className="space-y-2">
+                    {locMunicipalities.map((mun) => (
+                      <div
+                        key={mun.id}
+                        className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2"
+                      >
+                        <span className="text-sm font-bold text-slate-800">
+                          {mun.name}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteMunicipality(mun)}
+                          className="text-rose-600 p-1"
+                          title="Eliminar municipio"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    {locMunicipalities.length === 0 && (
+                      <p className="text-xs text-slate-500">
+                        Sin municipios en esta provincia.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </Card>
+          </div>
         )}
 
         {tab === "sec" && (
