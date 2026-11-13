@@ -83,6 +83,14 @@ import {
  */
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 
+// WhatsApp de soporte/licencias. Es el mismo número que devuelve
+// GET /api/public/config. Se usa como valor inicial para que el botón
+// "Solicitar licencia" funcione desde el primer render y nunca se quede
+// en "Cargando contacto..." mientras el backend despierta (el plan
+// gratis de Render tarda ~50 s en arrancar en frío); el fetch de abajo
+// solo lo actualiza si el backend devuelve otro número.
+const FALLBACK_ADMIN_CONTACT = "18063168743";
+
 const APP_NAME = "Mercado Cuba";
 
 /** * --- UTILIDADES DE PROCESAMIENTO ---
@@ -178,7 +186,9 @@ const AppProvider = ({ children }) => {
   const [myStore, setMyStore] = useState(null);
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
-  const [superAdminContact, setSuperAdminContact] = useState("");
+  const [superAdminContact, setSuperAdminContact] = useState(
+    FALLBACK_ADMIN_CONTACT
+  );
   // Cuenta migrada sin clave que debe crearla en el primer login.
   const [needsPassword, setNeedsPassword] = useState(null);
   const [provinces, setProvinces] = useState([]);
@@ -248,19 +258,39 @@ const AppProvider = ({ children }) => {
     else localStorage.removeItem("token");
   }, [token]);
 
-  // Obtener configuración pública (como WhatsApp de soporte)
+  // Obtener configuración pública (como WhatsApp de soporte).
+  // Reintenta solo con pausas crecientes: el backend gratis se duerme
+  // y el primer intento casi siempre cae en el arranque en frío (~50 s).
+  // Si todos los intentos fallan, el contacto de respaldo ya está puesto
+  // y el botón de licencia sigue funcionando.
   useEffect(() => {
+    let cancelled = false;
+    const delays = [2000, 5000, 10000, 20000, 30000, 30000, 30000];
     const fetchConfig = async () => {
-      try {
-        const res = await fetch(`${API_URL}/public/config`);
-        if (!res.ok) throw new Error("Backend no disponible");
-        const data = await res.json();
-        setSuperAdminContact(data.whatsapp);
-      } catch (e) {
-        console.warn("Usando configuración local por defecto.");
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          const res = await fetch(`${API_URL}/public/config`);
+          if (!res.ok) throw new Error("Backend no disponible");
+          const data = await res.json();
+          if (!cancelled && data.whatsapp) {
+            setSuperAdminContact(data.whatsapp);
+          }
+          return;
+        } catch (e) {
+          if (attempt === delays.length) {
+            console.warn("Usando configuración local por defecto.");
+            return;
+          }
+          await new Promise((resolve) =>
+            setTimeout(resolve, delays[attempt])
+          );
+        }
       }
     };
     fetchConfig();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const authHeaders = () => ({
