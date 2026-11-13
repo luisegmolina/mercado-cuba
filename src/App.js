@@ -17,6 +17,7 @@ import {
   priceLabel,
   orderMessage,
   ProductDetailModal,
+  PhotoUploader,
   CUBA_HERO,
   firstProductImage,
   cleanName,
@@ -175,6 +176,8 @@ const AppProvider = ({ children }) => {
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
   const [superAdminContact, setSuperAdminContact] = useState("");
+  // Cuenta migrada sin clave que debe crearla en el primer login.
+  const [needsPassword, setNeedsPassword] = useState(null);
   const [provinces, setProvinces] = useState([]);
   const [provincesError, setProvincesError] = useState(false);
 
@@ -303,17 +306,57 @@ const AppProvider = ({ children }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ whatsapp: normalizePhone(whatsapp), password }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        // Cuenta migrada sin clave: hay que crearla en el primer login.
+        if (data.must_reset_password) {
+          setNeedsPassword({ whatsapp: normalizePhone(whatsapp) });
+          notify("Crea tu contraseña para entrar", "error");
+          return;
+        }
+        throw new Error(data.error || "Error en el servidor");
+      }
+      const data = await res.json();
+      setToken(data.token);
+      setCurrentUser({
+        role: "vendor",
+        storeId: data.store ? data.store.id : null,
+        name: data.user ? data.user.owner_name : data.store?.owner_name,
+      });
+      setMyStore(data.store || null);
+      setMyProducts(Array.isArray(data.products) ? data.products : []);
+      notify(`Bienvenido, ${data.store ? data.store.name : "vendedor"}`);
+    } catch (err) {
+      notify(friendlyError(err), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Crear la contraseña de una cuenta migrada sin clave (primer login).
+  const setVendorPassword = async (whatsapp, newPassword) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/set-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          whatsapp: normalizePhone(whatsapp),
+          password: newPassword,
+        }),
+      });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const data = await res.json();
       setToken(data.token);
       setCurrentUser({
         role: "vendor",
-        storeId: data.store.id,
-        name: data.store.owner_name,
+        storeId: data.store ? data.store.id : null,
+        name: data.user ? data.user.owner_name : data.store?.owner_name,
       });
-      setMyStore(data.store);
+      setMyStore(data.store || null);
       setMyProducts(Array.isArray(data.products) ? data.products : []);
-      notify(`Bienvenido, ${data.store.name}`);
+      setNeedsPassword(null);
+      notify("Contraseña creada. ¡Bienvenido!");
     } catch (err) {
       notify(friendlyError(err), "error");
     } finally {
@@ -358,7 +401,10 @@ const AppProvider = ({ children }) => {
       const url = isEdit
         ? `${API_URL}/products/${prod.id}`
         : `${API_URL}/products`;
-      const payload = { ...prod, imageUrl: JSON.stringify(prod.images || []) };
+      // Las fotos viajan como array de URLs (el backend las guarda en
+      // product_images; data: en base64 ya no se acepta).
+      const payload = { ...prod, images: prod.images || [] };
+      delete payload.image_url;
       const res = await fetch(url, {
         method: isEdit ? "PUT" : "POST",
         headers: authHeaders(),
@@ -469,6 +515,56 @@ const AppProvider = ({ children }) => {
     }
   };
 
+  const extendCode = async (id, days = 365) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/codes/${id}/extend`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ days }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      fetchAdminData();
+      notify("Licencia extendida");
+    } catch (e) {
+      notify(friendlyError(e), "error");
+    }
+  };
+
+  const revokeCode = async (id) => {
+    if (!window.confirm("¿Revocar esta licencia? La tienda pierde la vigencia."))
+      return;
+    try {
+      const res = await fetch(`${API_URL}/admin/codes/${id}/revoke`, {
+        method: "PUT",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      fetchAdminData();
+      notify("Licencia revocada");
+    } catch (e) {
+      notify(friendlyError(e), "error");
+    }
+  };
+
+  // Conceder una licencia disponible a una tienda existente (p. ej. las
+  // tiendas migradas, que no tienen ninguna concesión).
+  const grantLicense = async (storeId, licenseId) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/store/${storeId}/grant`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ license_id: licenseId }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      fetchAdminData();
+      notify("Licencia concedida");
+      return true;
+    } catch (e) {
+      notify(friendlyError(e), "error");
+      return false;
+    }
+  };
+
   const toggleStore = async (id, status) => {
     if (!window.confirm("¿Cambiar estado de suspensión?")) return;
     await fetch(`${API_URL}/admin/store/${id}/status`, {
@@ -551,6 +647,7 @@ const AppProvider = ({ children }) => {
     setMyStore(null);
     setMyProducts([]);
     setAdminData(null);
+    setNeedsPassword(null);
     notify("Sesión cerrada");
   };
 
@@ -568,6 +665,8 @@ const AppProvider = ({ children }) => {
         loadProvinces,
         loginStore,
         registerStore,
+        needsPassword,
+        setVendorPassword,
         saveProduct,
         deleteProduct,
         updateStoreSettings,
@@ -582,6 +681,9 @@ const AppProvider = ({ children }) => {
         updateSuperAdminContact,
         getStoreById,
         deleteCode,
+        extendCode,
+        revokeCode,
+        grantLicense,
         logout,
       }}
     >
@@ -849,8 +951,9 @@ const LandingPage = () => {
       ?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const storeSlug = (s) =>
-    s.slug || (s.name || "").toLowerCase().trim().replace(/\s+/g, "-");
+  // El backend ya devuelve el slug real de cada tienda (antes se
+  // derivaba del nombre y enlazaba a 404 cuando no coincidía).
+  const storeSlug = (s) => s.slug || "";
 
   // Tiendas filtradas por el buscador (nombre, provincia o slug).
   const storeQueryNorm = storeQuery.trim().toLowerCase();
@@ -1190,7 +1293,7 @@ const LandingPage = () => {
                 >
                   <div className="aspect-square bg-sky-50 overflow-hidden relative">
                     <SafeImage
-                      src={parseImages(p.image_url)[0]}
+                      src={parseImages(p.images ?? p.image_url)[0]}
                       alt={cleanName(p.name)}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
@@ -1644,7 +1747,7 @@ const StoreFrontend = () => {
             className="group bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
           >
             <div className="relative">
-              <ImageGallery imagesStr={p.image_url} />
+              <ImageGallery imagesStr={p.images ?? p.image_url} />
               {isOut && (
                 <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full z-10">
                   Agotado
@@ -1732,8 +1835,11 @@ const AuthScreen = ({ mode }) => {
     loginSuperAdmin,
     currentUser,
     superAdminContact,
+    needsPassword,
+    setVendorPassword,
   } = useContext(AppContext);
   const [currMode, setCurrMode] = useState(mode);
+  const [newPass, setNewPass] = useState("");
   const [form, setForm] = useState({
     whatsapp: "",
     password: "",
@@ -1837,6 +1943,28 @@ const AuthScreen = ({ mode }) => {
               {currMode === "register" ? "Crear Mi Tienda" : "Entrar"}
             </Button>
           </form>
+          {/* Cuenta migrada sin clave: crea la contraseña en el primer login. */}
+          {currMode === "login" && needsPassword && (
+            <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+              <p className="text-xs text-amber-700 font-bold">
+                Tu cuenta aún no tiene contraseña. Crea una para entrar:
+              </p>
+              <Input
+                label="Nueva contraseña"
+                type="password"
+                value={newPass}
+                onChange={(e) => setNewPass(e.target.value)}
+              />
+              <Button
+                className="w-full"
+                onClick={() =>
+                  setVendorPassword(needsPassword.whatsapp, newPass)
+                }
+              >
+                Crear contraseña y entrar
+              </Button>
+            </div>
+          )}
           <div className="mt-6 text-center space-y-3">
             {currMode === "login" && (
               <>
@@ -1916,9 +2044,13 @@ const VendorDashboard = () => {
     description: myStore?.description || "",
     logoUrl: myStore?.logo_url || "",
     whatsapp: myStore?.whatsapp || "",
-    is_public_market: myStore?.is_public_market || false,
+    is_public: myStore?.is_public ?? true,
     province_id: myStore?.province_id || "",
   });
+  // Enlace de foto nueva (opción secundaria: el flujo principal es
+  // subir desde el celular/cámara con PhotoUploader; el enlace solo
+  // es para quien ya tiene la foto publicada en internet).
+  const [photoUrl, setPhotoUrl] = useState("");
 
   // Sincroniza el formulario de Ajustes cuando la tienda llega
   // (p. ej. tras restaurar la sesión) o cambia al guardar.
@@ -1929,7 +2061,7 @@ const VendorDashboard = () => {
       description: myStore.description || "",
       logoUrl: myStore.logo_url || "",
       whatsapp: myStore.whatsapp || "",
-      is_public_market: !!myStore.is_public_market,
+      is_public: !!myStore.is_public,
       province_id: myStore.province_id || "",
     });
   }, [myStore]);
@@ -1946,7 +2078,7 @@ const VendorDashboard = () => {
             priceUsd: p.price_usd ?? p.priceUsd ?? 0,
             category: p.category || "",
             stock: p.stock ?? 1,
-            images: parseImages(p.image_url),
+            images: parseImages(p.images ?? p.image_url),
           }
         : {
             name: "",
@@ -2008,62 +2140,22 @@ const VendorDashboard = () => {
     prodPageSafe * PRODUCTS_PER_PAGE,
   );
 
-  // Comprime una imagen con canvas: máx. 900 px en el lado mayor,
-  // JPEG calidad 0.75. Una foto de teléfono de 2-4 MB queda en
-  // ~100-200 KB, clave para datos lentos y caros en Cuba.
-  const compressImage = (file) =>
-    new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        const maxSide = 900;
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("No se pudo leer la imagen"));
-      };
-      img.src = url;
-    });
-
-  const handleImageUpload = async (e, target) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = "";
-    if (files.length === 0) return;
-    const tooBig = files.filter((f) => f.size > 10 * 1024 * 1024);
-    if (tooBig.length > 0) {
-      notify("Foto muy grande", "error");
+  // Añade una foto por su enlace (opción secundaria; máx. 3 por
+  // producto). Solo URLs https: el backend rechaza base64 (data:)
+  // con error 400.
+  const addPhotoUrl = () => {
+    const url = (photoUrl || "").trim();
+    if (!url) return;
+    if (!/^https:\/\//i.test(url) || /^data:/i.test(url)) {
+      notify("Pega un enlace https válido", "error");
+      return;
     }
-    let okFiles = files.filter((f) => f.size <= 10 * 1024 * 1024);
-    if (target === "product") {
-      const slotsLeft = Math.max(0, 3 - (formP.images || []).length);
-      if (okFiles.length > slotsLeft) {
-        notify("Máximo 3 fotos por producto", "error");
-        okFiles = okFiles.slice(0, slotsLeft);
-      }
-    } else {
-      okFiles = okFiles.slice(0, 1);
+    if ((formP.images || []).length >= 3) {
+      notify("Máximo 3 fotos por producto", "error");
+      return;
     }
-    if (okFiles.length === 0) return;
-    try {
-      const imgs = await Promise.all(okFiles.map(compressImage));
-      if (target === "product")
-        setFormP((prev) => ({
-          ...prev,
-          images: [...(prev.images || []), ...imgs],
-        }));
-      else setFormS((prev) => ({ ...prev, logoUrl: imgs[0] }));
-    } catch (err) {
-      notify("No se pudo procesar la foto", "error");
-    }
+    setFormP((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
+    setPhotoUrl("");
   };
 
   return (
@@ -2106,11 +2198,11 @@ const VendorDashboard = () => {
 
                 <div className="flex items-center gap-2 bg-sky-50 p-2 pl-4 rounded-xl border border-slate-200 w-full max-w-md">
                   <span className="text-sm font-mono text-cyan-700 truncate flex-1">
-                    {`${window.location.origin}/${myStore.slug || myStore.name.toLowerCase().trim().replace(/\s+/g, "-")}`}
+                    {`${window.location.origin}/${myStore.slug}`}
                   </span>
                   <button
                     onClick={() => {
-                      const url = `${window.location.origin}/${myStore.slug || myStore.name.toLowerCase().trim().replace(/\s+/g, "-")}`;
+                      const url = `${window.location.origin}/${myStore.slug}`;
                       navigator.clipboard.writeText(url);
                       notify("¡Enlace copiado!");
                     }}
@@ -2150,7 +2242,7 @@ const VendorDashboard = () => {
               >
                 <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shrink-0 border border-slate-200">
                   <SafeImage
-                    src={parseImages(p.image_url)[0]}
+                    src={parseImages(p.images ?? p.image_url)[0]}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -2241,20 +2333,30 @@ const VendorDashboard = () => {
                 }
               />
             </div>
-            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200">
-              <SafeImage
-                src={formS.logoUrl}
-                className="w-16 h-16 rounded-full overflow-hidden"
+            <div className="p-4 bg-white rounded-xl border border-slate-200">
+              <PhotoUploader
+                images={formS.logoUrl ? [formS.logoUrl] : []}
+                onChange={(imgs) =>
+                  setFormS((prev) => ({ ...prev, logoUrl: imgs[0] || "" }))
+                }
+                max={1}
+                single
+                label="Logo de la tienda"
               />
-              <label className="bg-cyan-600 text-white px-4 py-2 rounded-lg cursor-pointer text-xs font-bold uppercase">
-                Subir Logo
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <label className="block text-[11px] text-slate-500 mb-1.5">
+                  ¿Prefieres pegar un enlace? (opcional)
+                </label>
                 <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleImageUpload(e, "logo")}
+                  type="url"
+                  placeholder="https://... (enlace de la imagen)"
+                  value={formS.logoUrl || ""}
+                  onChange={(e) =>
+                    setFormS({ ...formS, logoUrl: e.target.value })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
                 />
-              </label>
+              </div>
             </div>
             <div className="p-4 bg-sky-50 rounded-2xl border border-slate-200 flex items-center justify-between mb-4">
               <div>
@@ -2267,9 +2369,9 @@ const VendorDashboard = () => {
                 <input
                   type="checkbox"
                   className="sr-only peer"
-                  checked={formS.is_public_market}
+                  checked={formS.is_public}
                   onChange={(e) =>
-                    setFormS({ ...formS, is_public_market: e.target.checked })
+                    setFormS({ ...formS, is_public: e.target.checked })
                   }
                 />
                 <div className="w-11 h-6 bg-slate-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
@@ -2409,40 +2511,41 @@ const VendorDashboard = () => {
               </div>
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <label className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer uppercase">
-                Añadir Fotos{" "}
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleImageUpload(e, "product")}
-                />
-              </label>
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                {formP.images?.map((url, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square bg-sky-50 rounded-xl overflow-hidden relative"
-                  >
-                    <SafeImage
-                      src={url}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormP((p) => ({
-                          ...p,
-                          images: p.images.filter((_, idx) => idx !== i),
-                        }))
+              <PhotoUploader
+                images={formP.images || []}
+                onChange={(imgs) =>
+                  setFormP((prev) => ({ ...prev, images: imgs }))
+                }
+                max={3}
+                label="Fotos"
+              />
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <p className="text-[11px] text-slate-500 mb-2">
+                  ¿Prefieres pegar un enlace? También puedes añadir una
+                  foto por su enlace de internet.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://... (enlace de la foto)"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addPhotoUrl();
                       }
-                      className="absolute top-1 right-1 bg-rose-600 rounded-full p-1 text-white"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
+                    }}
+                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500 placeholder:text-slate-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={addPhotoUrl}
+                    className="bg-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shrink-0"
+                  >
+                    Añadir
+                  </button>
+                </div>
               </div>
             </div>
             <Button type="submit" className="w-full py-4 text-lg">
@@ -2465,6 +2568,9 @@ const SuperAdminPanel = () => {
     deleteStore,
     updateAdminPass,
     deleteCode,
+    extendCode,
+    revokeCode,
+    grantLicense,
     adminResetStorePass,
     adminUpdateStoreContact,
     updateSuperAdminContact,
@@ -2476,6 +2582,7 @@ const SuperAdminPanel = () => {
   const [selStore, setSelStore] = useState(null);
   const [resetP, setResetP] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
+  const [grantLicenseId, setGrantLicenseId] = useState("");
   const [adminContact, setAdminContact] = useState(superAdminContact);
   // Búsqueda y paginación del panel (Tiendas: 10/pág; Licencias: 15/pág).
   const [storeQuery, setStoreQuery] = useState("");
@@ -2490,6 +2597,8 @@ const SuperAdminPanel = () => {
 
   if (!adminData) return null;
   const { stats, stores, codes } = adminData;
+  // Licencias disponibles para conceder a una tienda (sin canjear).
+  const availableLicenses = codes.filter((c) => c.status === "active");
 
   // --- Filtrado y paginación de Tiendas (10 por página) ---
   const STORES_PER_PAGE = 10;
@@ -2500,8 +2609,7 @@ const SuperAdminPanel = () => {
     if (storeStatus === "active" && s.is_suspended) return false;
     if (storeStatus === "suspended" && !s.is_suspended) return false;
     if (!storeQueryNorm) return true;
-    const slug =
-      s.slug || s.name.toLowerCase().trim().replace(/\s+/g, "-");
+    const slug = s.slug || "";
     return (
       norm(s.name).includes(storeQueryNorm) ||
       norm(s.owner_name).includes(storeQueryNorm) ||
@@ -2565,13 +2673,34 @@ const SuperAdminPanel = () => {
               {stats.total_stores}
             </div>
           </Card>
+          <Card className="p-4 border-l-4 border-sky-500">
+            <div className="text-xs text-slate-500 font-bold uppercase">
+              Usuarios
+            </div>
+            <div className="text-3xl text-slate-900 font-black">
+              {stats.total_users}
+            </div>
+          </Card>
           <Card className="p-4 border-l-4 border-emerald-500">
             <div className="text-xs text-slate-500 font-bold uppercase">
-              Licencias
+              Licencias disp.
             </div>
             <div className="text-3xl text-slate-900 font-black">
               {stats.available_licenses}
             </div>
+          </Card>
+          <Card className="p-4 border-l-4 border-amber-500">
+            <div className="text-xs text-slate-500 font-bold uppercase">
+              Concesiones activas
+            </div>
+            <div className="text-3xl text-slate-900 font-black">
+              {stats.active_grants}
+            </div>
+            {stats.expiring_soon > 0 && (
+              <div className="text-[11px] text-amber-600 font-bold mt-1">
+                {stats.expiring_soon} vencen en 30 días
+              </div>
+            )}
           </Card>
         </div>
 
@@ -2621,17 +2750,73 @@ const SuperAdminPanel = () => {
               {codePageCodes.map((c) => (
                 <div
                   key={c.id}
-                  className="flex justify-between items-center p-3 bg-white rounded-lg border border-slate-200"
+                  className="p-3 bg-white rounded-lg border border-slate-200 space-y-2"
                 >
-                  <span className="font-mono text-slate-600 font-bold">
-                    {c.code}
-                  </span>
-                  <button
-                    onClick={() => deleteCode(c.id)}
-                    className="text-rose-600 hover:scale-110"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="font-mono text-slate-600 font-bold">
+                      {c.code}
+                    </span>
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        c.status === "active"
+                          ? "bg-emerald-500/10 text-emerald-600"
+                          : c.status === "used"
+                            ? "bg-cyan-500/10 text-cyan-700"
+                            : c.status === "expired"
+                              ? "bg-amber-500/10 text-amber-600"
+                              : "bg-rose-500/10 text-rose-600"
+                      }`}
+                    >
+                      {c.status === "active"
+                        ? "Disponible"
+                        : c.status === "used"
+                          ? "En uso"
+                          : c.status === "expired"
+                            ? "Caducada"
+                            : "Revocada"}
+                    </span>
+                  </div>
+                  {c.store_name && (
+                    <p className="text-xs text-slate-500">
+                      {c.store_name}
+                      {c.valid_until &&
+                        ` · vence ${c.valid_until.split("T")[0]}`}
+                    </p>
+                  )}
+                  {c.status === "active" && !c.store_name && (
+                    <p className="text-xs text-slate-500">
+                      Vigencia al canjear: {c.duration_days || 365} días
+                      {c.expires_at &&
+                        ` · el código caduca ${c.expires_at.split("T")[0]}`}
+                    </p>
+                  )}
+                  <div className="flex gap-2 justify-end">
+                    {c.status === "used" && (
+                      <>
+                        <button
+                          onClick={() => extendCode(c.id, 365)}
+                          className="text-xs font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-3 py-1.5 rounded-lg hover:bg-cyan-100"
+                        >
+                          Extender +365 días
+                        </button>
+                        <button
+                          onClick={() => revokeCode(c.id)}
+                          className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-100"
+                        >
+                          Revocar
+                        </button>
+                      </>
+                    )}
+                    {c.status !== "used" && (
+                      <button
+                        onClick={() => deleteCode(c.id)}
+                        className="text-rose-600 hover:scale-110 p-1.5"
+                        title="Borrar licencia"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {filteredCodes.length === 0 && (
@@ -2708,9 +2893,7 @@ const SuperAdminPanel = () => {
               </p>
             </Card>
             {storePageStores.map((s) => {
-              // Generamos el slug basado en el nombre (o usamos s.slug si tu backend ya lo trae)
-              const storeSlug =
-                s.slug || s.name.toLowerCase().trim().replace(/\s+/g, "-");
+              const storeSlug = s.slug || "";
               // Construimos la URL dinámica usando el origen actual (localhost o dominio real)
               const storeUrl = `${window.location.origin}/${storeSlug}`;
 
@@ -2726,10 +2909,18 @@ const SuperAdminPanel = () => {
                   <div className="flex-1 min-w-0 w-full">
                     <h4 className="font-bold text-slate-800 text-lg">
                       {s.name}
+                      {!s.is_public && (
+                        <span className="ml-2 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full align-middle">
+                          oculta
+                        </span>
+                      )}
                     </h4>
                     <p className="text-xs text-slate-500 mb-2">
                       {s.owner_name} • {formatPhone(s.whatsapp)} •{" "}
                       {s.created_at.split("T")[0]}
+                      {s.license_valid_until
+                        ? ` • licencia hasta ${s.license_valid_until.split("T")[0]}`
+                        : " • sin licencia vigente"}
                     </p>
 
                     {/* Contenedor de la URL y botón de copiar */}
@@ -2832,6 +3023,19 @@ const SuperAdminPanel = () => {
               >
                 Actualizar Clave
               </Button>
+              <p className="text-xs text-slate-500 mt-3">
+                Último cambio de clave:{" "}
+                {adminData.password_changed_at
+                  ? new Date(adminData.password_changed_at).toLocaleDateString(
+                      "es-ES",
+                      { day: "2-digit", month: "2-digit", year: "numeric" },
+                    )
+                  : "sin registro"}
+              </p>
+              <p className="text-xs text-slate-500">
+                El recordatorio de cambio se activa cuando elijas el
+                intervalo (30, 60 o 90 días).
+              </p>
             </Card>
             <Card className="p-5">
               <h3 className="text-slate-900 font-bold mb-4 uppercase text-sm">
@@ -2875,6 +3079,56 @@ const SuperAdminPanel = () => {
             >
               Guardar Contacto
             </Button>
+
+            <div className="bg-sky-50 p-4 rounded-xl border border-slate-200 mb-6">
+              <h4 className="text-slate-900 font-bold text-xs mb-2 uppercase tracking-widest">
+                Licencia
+              </h4>
+              {selStore.license_valid_until &&
+              selStore.license_status === "active" &&
+              new Date(selStore.license_valid_until) > new Date() ? (
+                <p className="text-sm text-slate-600">
+                  Vigente hasta{" "}
+                  <strong>
+                    {selStore.license_valid_until.split("T")[0]}
+                  </strong>
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-600 mb-3">
+                    Sin licencia vigente. Concede una disponible:
+                  </p>
+                  <select
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none mb-2"
+                    value={grantLicenseId}
+                    onChange={(e) => setGrantLicenseId(e.target.value)}
+                  >
+                    <option value="">Elegir licencia...</option>
+                    {availableLicenses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.code} ({c.duration_days || 365} días)
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      if (!grantLicenseId) return;
+                      const ok = await grantLicense(
+                        selStore.id,
+                        grantLicenseId,
+                      );
+                      if (ok) {
+                        setGrantLicenseId("");
+                        setSelStore(null);
+                      }
+                    }}
+                  >
+                    Conceder licencia
+                  </Button>
+                </>
+              )}
+            </div>
 
             <div className="bg-rose-100 p-4 rounded-xl border border-rose-200">
               <h4 className="text-rose-600 font-bold text-xs mb-3 uppercase tracking-widest">
