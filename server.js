@@ -18,12 +18,31 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const crypto = require("crypto");
 
 const app = express();
+// Render está detrás de un proxy: sin esto, express-rate-limit ve la IP
+// del proxy y todos los clientes comparten un único cubo.
+app.set("trust proxy", 1);
 app.use(compression());
+// Sin crossOriginResourcePolicy: la API la consume el frontend desde
+// otro origen (pages.dev) y ese encabezado bloquearía los fetch.
+app.use(helmet({ crossOriginResourcePolicy: false }));
+// Orígenes permitidos: la web en producción, la APK (Capacitor) y el
+// desarrollo local. Sin Origin (curl, apps) se permite.
+const ALLOWED_ORIGINS = [
+  "https://mercado-cuba.pages.dev",
+  "capacitor://localhost",
+  "http://localhost",
+  "https://localhost",
+];
 app.use(
   cors({
-    origin: "*", // Permite que cualquier dominio (como tu .pages.dev) se conecte
+    origin: (origin, cb) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+      return cb(null, false);
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -157,7 +176,7 @@ const initAdminBootstrap = async () => {
     client = await pool.connect();
     const res = await client.query("SELECT COUNT(*)::int AS n FROM admins");
     if (res.rows[0].n === 0) {
-      const hash = await bcrypt.hash(DEFAULT_ADMIN_PASS, 10);
+      const hash = await bcrypt.hash(DEFAULT_ADMIN_PASS, 12);
       const envWa = process.env.ADMIN_SUPPORT_WHATSAPP
         ? normalizePhone(process.env.ADMIN_SUPPORT_WHATSAPP)
         : "";
@@ -189,7 +208,7 @@ const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Token requerido" });
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }, (err, user) => {
     if (err) return res.status(403).json({ error: "Token inválido" });
     // Los tokens de vendedor del esquema viejo llevaban id = id de la
     // tienda. El esquema nuevo usa id = id del usuario: esos tokens
@@ -213,6 +232,28 @@ const authLimiter = rateLimit({
     error: "Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.",
   },
 });
+
+// Límite por cuenta (además del límite por IP): 5 fallos en 15 min
+// bloquean ESA cuenta 15 min. Sin esto, rotando IPs se puede probar
+// contraseñas contra una cuenta concreta sin que nunca se bloquee.
+const loginFailures = new Map();
+const LOGIN_MAX_FAILS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const accountLocked = (key) => {
+  const rec = loginFailures.get(key);
+  return !!rec && rec.blockedUntil && rec.blockedUntil > Date.now();
+};
+const recordLoginFailure = (key) => {
+  const now = Date.now();
+  const rec = loginFailures.get(key);
+  if (!rec || now - rec.firstAt > LOGIN_WINDOW_MS)
+    loginFailures.set(key, { count: 1, firstAt: now, blockedUntil: 0 });
+  else {
+    rec.count += 1;
+    if (rec.count >= LOGIN_MAX_FAILS) rec.blockedUntil = now + LOGIN_WINDOW_MS;
+  }
+};
+const clearLoginFailures = (key) => loginFailures.delete(key);
 
 // --- CONSULTAS COMPARTIDAS ---
 // Una tienda es visible en el mercado solo si es pública, no está
@@ -595,8 +636,17 @@ app.post("/api/login", authLimiter, async (req, res, next) => {
       `SELECT * FROM users WHERE whatsapp = ANY($1)`,
       [candidates],
     );
-    if (userRes.rows.length === 0)
-      return res.status(404).json({ error: "Usuario no encontrado" });
+    // Respuesta genérica para usuario inexistente o clave incorrecta:
+    // no revelar si el número está registrado. La comparación ficticia
+    // iguala el tiempo de respuesta en ambos casos.
+    const DUMMY_HASH =
+      "$2b$12$abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0";
+    if (userRes.rows.length === 0) {
+      await bcrypt
+        .compare(String(password || ""), DUMMY_HASH)
+        .catch(() => false);
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
     const user = userRes.rows[0];
     if (user.is_suspended)
       return res.status(403).json({ error: "Cuenta suspendida." });
@@ -609,8 +659,15 @@ app.post("/api/login", authLimiter, async (req, res, next) => {
         must_reset_password: true,
       });
     }
-    if (!(await bcrypt.compare(password, user.password_hash || "")))
-      return res.status(401).json({ error: "Contraseña incorrecta" });
+    if (accountLocked(candidates[0]))
+      return res.status(429).json({
+        error: "Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.",
+      });
+    if (!(await bcrypt.compare(password, user.password_hash || ""))) {
+      recordLoginFailure(candidates[0]);
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+    clearLoginFailures(candidates[0]);
 
     await pool.query(
       "UPDATE users SET last_login_at = now() WHERE id = $1",
@@ -619,69 +676,12 @@ app.post("/api/login", authLimiter, async (req, res, next) => {
     const token = jwt.sign(
       { id: user.id, role: "vendor", name: user.owner_name, v: 2 },
       JWT_SECRET,
-      { expiresIn: "7d" },
+      { expiresIn: "1d", algorithm: "HS256" },
     );
     const stores = await fetchStoresOfUser(user.id);
     const store = stores[0] || null;
     const products = store ? await fetchProductsOfStore(store.id) : [];
     const { password_hash, ...safeUser } = user;
-    res.json({ token, user: safeUser, stores, store, products });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Primer login de una cuenta migrada sin clave: crea la contraseña
-// (solo si must_reset_password es TRUE) y entra directamente.
-app.post("/api/set-password", authLimiter, async (req, res, next) => {
-  const { whatsapp, password } = req.body;
-  if (!password || String(password).length < 6)
-    return res
-      .status(400)
-      .json({ error: "La contraseña debe tener al menos 6 caracteres" });
-  try {
-    const normalized = normalizePhone(whatsapp);
-    const candidates = [
-      ...new Set(
-        [
-          normalized,
-          stripCountryCode(normalized),
-          String(whatsapp ?? "").replace(/\D/g, ""),
-        ].filter(Boolean),
-      ),
-    ];
-    const userRes = await pool.query(
-      "SELECT * FROM users WHERE whatsapp = ANY($1)",
-      [candidates],
-    );
-    if (userRes.rows.length === 0)
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    const user = userRes.rows[0];
-    if (user.is_suspended)
-      return res.status(403).json({ error: "Cuenta suspendida." });
-    if (
-      !user.must_reset_password &&
-      user.password_hash !== "NO_PASSWORD_SET"
-    )
-      return res
-        .status(400)
-        .json({ error: "Esta cuenta ya tiene contraseña" });
-
-    const hash = await bcrypt.hash(password, 10);
-    await pool.query(
-      "UPDATE users SET password_hash = $1, must_reset_password = FALSE, last_login_at = now() WHERE id = $2",
-      [hash, user.id],
-    );
-    const token = jwt.sign(
-      { id: user.id, role: "vendor", name: user.owner_name, v: 2 },
-      JWT_SECRET,
-      { expiresIn: "7d" },
-    );
-    const stores = await fetchStoresOfUser(user.id);
-    const store = stores[0] || null;
-    const products = store ? await fetchProductsOfStore(store.id) : [];
-    const { password_hash, ...safeUser } = user;
-    safeUser.must_reset_password = false;
     res.json({ token, user: safeUser, stores, store, products });
   } catch (err) {
     next(err);
@@ -699,10 +699,10 @@ app.post("/api/register", authLimiter, async (req, res) => {
     return res.status(400).json({
       error: "Número de WhatsApp inválido (revisa el código de país)",
     });
-  if (!password || String(password).length < 6)
+  if (!password || String(password).length < 10)
     return res
       .status(400)
-      .json({ error: "La contraseña debe tener al menos 6 caracteres" });
+      .json({ error: "La contraseña debe tener al menos 10 caracteres" });
   if (!code || !String(code).trim())
     return res.status(400).json({ error: "El código de licencia es obligatorio" });
 
@@ -749,7 +749,7 @@ app.post("/api/register", authLimiter, async (req, res) => {
       slug = `${createSlug(name)}-${Math.floor(Math.random() * 10000)}`;
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 12);
     const owner = (ownerName && String(ownerName).trim()) || String(name).trim();
     const userRes = await client.query(
       `INSERT INTO users (whatsapp, password_hash, owner_name)
@@ -792,7 +792,7 @@ app.post("/api/register", authLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: user.id, role: "vendor", name: user.owner_name, v: 2 },
       JWT_SECRET,
-      { expiresIn: "7d" },
+      { expiresIn: "1d", algorithm: "HS256" },
     );
     const fullStore = await fetchStoreFull(store.id);
     res.json({ token, user, store: fullStore });
@@ -840,7 +840,7 @@ app.post("/api/admin/login", authLimiter, async (req, res, next) => {
       const token = jwt.sign(
         { role: "superadmin", admin_id: admin.id },
         JWT_SECRET,
-        { expiresIn: "4h" },
+        { expiresIn: "4h", algorithm: "HS256" },
       );
       res.json({ token });
     } else {
@@ -1207,7 +1207,7 @@ const generateLicenseCode = () => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";
   for (let i = 0; i < 12; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+    code += chars[crypto.randomInt(chars.length)];
   }
   return code;
 };
@@ -1533,10 +1533,10 @@ app.put(
   async (req, res, next) => {
     if (req.user.role !== "superadmin")
       return res.status(403).json({ error: "Admin" });
-    if (!req.body.newPassword || String(req.body.newPassword).length < 6)
+    if (!req.body.newPassword || String(req.body.newPassword).length < 10)
       return res
         .status(400)
-        .json({ error: "La contraseña debe tener al menos 6 caracteres" });
+        .json({ error: "La contraseña debe tener al menos 10 caracteres" });
     try {
       const store = await pool.query(
         "SELECT owner_id, name FROM stores WHERE id = $1",
@@ -1544,7 +1544,7 @@ app.put(
       );
       if (store.rows.length === 0)
         return res.status(404).json({ error: "Tienda no encontrada" });
-      const hash = await bcrypt.hash(req.body.newPassword, 10);
+      const hash = await bcrypt.hash(req.body.newPassword, 12);
       await pool.query(
         "UPDATE users SET password_hash = $1, must_reset_password = FALSE WHERE id = $2",
         [hash, store.rows[0].owner_id],
@@ -1601,20 +1601,41 @@ app.put("/api/admin/store/:id/contact", authenticateToken, async (req, res, next
 app.put("/api/admin/password", authenticateToken, async (req, res, next) => {
   if (req.user.role !== "superadmin")
     return res.status(403).json({ error: "Admin" });
-  if (!req.body.password || req.body.password.length < 6)
-    return res.status(400).json({ error: "Contraseña corta" });
+  if (!req.body.password || req.body.password.length < 10)
+    return res
+      .status(400)
+      .json({ error: "La contraseña debe tener al menos 10 caracteres" });
+  if (!req.body.currentPassword)
+    return res.status(400).json({ error: "Escribe la clave actual" });
   try {
-    const hash = await bcrypt.hash(req.body.password, 10);
-    // password_changed_at = now(): ahí arranca el reloj del recordatorio.
-    const result = req.user.admin_id
-      ? await pool.query(
-          "UPDATE admins SET password_hash = $1, password_changed_at = now() WHERE id = $2 RETURNING id",
-          [hash, req.user.admin_id],
-        )
+    // Hay que verificar la clave actual: con un token robado no basta
+    // para cambiar la clave y dejar fuera al dueño.
+    const adminIdRes = req.user.admin_id
+      ? { rows: [{ id: req.user.admin_id }] }
       : await pool.query(
-          "UPDATE admins SET password_hash = $1, password_changed_at = now() WHERE id = (SELECT id FROM admins ORDER BY created_at ASC LIMIT 1) RETURNING id",
-          [hash],
+          "SELECT id FROM admins ORDER BY created_at ASC LIMIT 1",
         );
+    const adminId = adminIdRes.rows[0] && adminIdRes.rows[0].id;
+    if (!adminId)
+      return res.status(404).json({ error: "Configuración no encontrada" });
+    const adminRes = await pool.query(
+      "SELECT password_hash FROM admins WHERE id = $1",
+      [adminId],
+    );
+    if (
+      adminRes.rows.length === 0 ||
+      !(await bcrypt.compare(
+        String(req.body.currentPassword),
+        adminRes.rows[0].password_hash || "",
+      ))
+    )
+      return res.status(401).json({ error: "La clave actual no coincide" });
+    const hash = await bcrypt.hash(req.body.password, 12);
+    // password_changed_at = now(): ahí arranca el reloj del recordatorio.
+    const result = await pool.query(
+      "UPDATE admins SET password_hash = $1, password_changed_at = now() WHERE id = $2 RETURNING id",
+      [hash, adminId],
+    );
     if (result.rowCount === 0)
       return res.status(404).json({ error: "Configuración no encontrada" });
     await logAudit({

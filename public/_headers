@@ -1,0 +1,8 @@
+/*
+  Cabeceras de seguridad para la web (Cloudflare Pages).
+  Sin CSP aquí: una CSP mal puesta rompería la app; el backend ya
+  lleva helmet y el CORS restringido.
+*/
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

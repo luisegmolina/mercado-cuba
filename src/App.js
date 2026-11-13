@@ -346,7 +346,7 @@ const AppProvider = ({ children }) => {
         // Cuenta migrada sin clave: hay que crearla en el primer login.
         if (data.must_reset_password) {
           setNeedsPassword({ whatsapp: normalizePhone(whatsapp) });
-          notify("Crea tu contraseña para entrar", "error");
+          notify("Tu cuenta no tiene contraseña. Pídele al administrador que te ponga una.", "error");
           return;
         }
         throw new Error(data.error || "Error en el servidor");
@@ -368,36 +368,6 @@ const AppProvider = ({ children }) => {
     }
   };
 
-  // Crear la contraseña de una cuenta migrada sin clave (primer login).
-  const setVendorPassword = async (whatsapp, newPassword) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/set-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          whatsapp: normalizePhone(whatsapp),
-          password: newPassword,
-        }),
-      });
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-      const data = await res.json();
-      setToken(data.token);
-      setCurrentUser({
-        role: "vendor",
-        storeId: data.store ? data.store.id : null,
-        name: data.user ? data.user.owner_name : data.store?.owner_name,
-      });
-      setMyStore(data.store || null);
-      setMyProducts(Array.isArray(data.products) ? data.products : []);
-      setNeedsPassword(null);
-      notify("Contraseña creada. ¡Bienvenido!");
-    } catch (err) {
-      notify(friendlyError(err), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const registerStore = async (data, code, pwd) => {
     setLoading(true);
@@ -715,13 +685,23 @@ const AppProvider = ({ children }) => {
     }
   };
 
-  const updateAdminPass = async (password) => {
-    await fetch(`${API_URL}/admin/password`, {
-      method: "PUT",
-      headers: authHeaders(),
-      body: JSON.stringify({ password }),
-    });
-    notify("Contraseña actualizada");
+  const updateAdminPass = async (password, currentPassword) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/password`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ password, currentPassword }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      notify("Contraseña actualizada");
+      return true;
+    } catch (err) {
+      notify(friendlyError(err), "error");
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {
@@ -749,7 +729,6 @@ const AppProvider = ({ children }) => {
         loginStore,
         registerStore,
         needsPassword,
-        setVendorPassword,
         saveProduct,
         quickSaveProduct,
         deleteProduct,
@@ -1921,10 +1900,8 @@ const AuthScreen = ({ mode }) => {
     currentUser,
     superAdminContact,
     needsPassword,
-    setVendorPassword,
   } = useContext(AppContext);
   const [currMode, setCurrMode] = useState(mode);
-  const [newPass, setNewPass] = useState("");
   const [form, setForm] = useState({
     whatsapp: "",
     password: "",
@@ -2028,26 +2005,13 @@ const AuthScreen = ({ mode }) => {
               {currMode === "register" ? "Crear Mi Tienda" : "Entrar"}
             </Button>
           </form>
-          {/* Cuenta migrada sin clave: crea la contraseña en el primer login. */}
+          {/* Cuenta sin contraseña: solo el administrador puede ponerla. */}
           {currMode === "login" && needsPassword && (
-            <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-              <p className="text-xs text-amber-700 font-bold">
-                Tu cuenta aún no tiene contraseña. Crea una para entrar:
+            <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-xs text-amber-700">
+                Tu cuenta aún no tiene contraseña. Pídele al administrador
+                que te ponga una para poder entrar.
               </p>
-              <Input
-                label="Nueva contraseña"
-                type="password"
-                value={newPass}
-                onChange={(e) => setNewPass(e.target.value)}
-              />
-              <Button
-                className="w-full"
-                onClick={() =>
-                  setVendorPassword(needsPassword.whatsapp, newPass)
-                }
-              >
-                Crear contraseña y entrar
-              </Button>
             </div>
           )}
           <div className="mt-6 text-center space-y-3">
@@ -2877,6 +2841,7 @@ const SuperAdminPanel = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState("stores");
   const [pass, setPass] = useState("");
+  const [currentPass, setCurrentPass] = useState("");
   const [selStore, setSelStore] = useState(null);
   const [resetP, setResetP] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
@@ -3415,14 +3380,23 @@ const SuperAdminPanel = () => {
               </h3>
               <Input
                 type="password"
-                placeholder="Nueva Clave Admin"
+                placeholder="Clave actual"
+                value={currentPass}
+                onChange={(e) => setCurrentPass(e.target.value)}
+              />
+              <Input
+                type="password"
+                placeholder="Nueva Clave Admin (mín. 10 caracteres)"
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
               />
               <Button
-                onClick={() => {
-                  updateAdminPass(pass);
-                  setPass("");
+                onClick={async () => {
+                  const ok = await updateAdminPass(pass, currentPass);
+                  if (ok) {
+                    setPass("");
+                    setCurrentPass("");
+                  }
                 }}
                 className="w-full"
               >

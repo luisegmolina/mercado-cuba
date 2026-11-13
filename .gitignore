@@ -22,3 +22,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Volcados de base de datos (pueden llevar hashes de contraseñas): nunca se commitean
+copia_mercado.sql
+copia_mercado_limpia.sql
