@@ -209,9 +209,16 @@ app.get("/api/public/config", async (req, res, next) => {
 });
 
 // Endpoint para obtener la vitrina global
+// ?q= busca en nombre del producto, nombre de la tienda y categoría.
+// Sin q, la búsqueda de Explorar solo filtraba los 20 ya descargados.
 app.get("/api/public/all-products", async (req, res, next) => {
   try {
     const { limit, offset } = parsePagination(req);
+    const q = String(req.query.q || "").trim();
+    const hasQ = q.length > 0;
+    const searchWhere = hasQ
+      ? `AND (p.name ILIKE $3 OR s.name ILIKE $3 OR p.category ILIKE $3)`
+      : "";
     const query = `
       SELECT 
         p.id, p.name, p.price_cup, p.price_usd, p.image_url, p.category, p.stock, p.description,
@@ -223,11 +230,83 @@ app.get("/api/public/all-products", async (req, res, next) => {
       WHERE (s.is_public_market = true OR s.is_public_market::text = 'true') 
         AND (s.is_suspended = false OR s.is_suspended::text = 'false')
         AND (p.is_visible = true OR p.is_visible::text = 'true')
+        ${searchWhere}
       ORDER BY p.created_at DESC
       LIMIT $1 OFFSET $2;
     `;
-    const result = await pool.query(query, [limit, offset]);
+    const params = hasQ ? [limit, offset, `%${q}%`] : [limit, offset];
+    const result = await pool.query(query, params);
     res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/api/public/landing", async (req, res, next) => {
+  try {
+    const storesRes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM stores s WHERE s.is_active = TRUE AND s.is_suspended = FALSE AND (s.is_public_market = TRUE OR s.is_public_market::text = 'true')`,
+    );
+    const productsRes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM products p
+       JOIN stores s ON p.store_id = s.id
+       WHERE (s.is_public_market = true OR s.is_public_market::text = 'true')
+         AND (s.is_suspended = false OR s.is_suspended::text = 'false')
+         AND (p.is_visible = true OR p.is_visible::text = 'true')`,
+    );
+    const listRes = await pool.query(
+      `SELECT
+        p.id, p.name, p.price_cup, p.price_usd, p.image_url, p.category, p.stock, p.description,
+        s.name as store_name, s.whatsapp as store_whatsapp, s.slug as store_slug,
+        prov.name as store_province
+      FROM products p
+      JOIN stores s ON p.store_id = s.id
+      LEFT JOIN provinces prov ON s.province_id = prov.id
+      WHERE (s.is_public_market = true OR s.is_public_market::text = 'true')
+        AND (s.is_suspended = false OR s.is_suspended::text = 'false')
+        AND (p.is_visible = true OR p.is_visible::text = 'true')
+      ORDER BY p.created_at DESC
+      LIMIT 100`,
+    );
+    // Solo la primera foto: el resto del array nunca se muestra en la portada.
+    const firstImage = (v) => {
+      if (!v) return "";
+      try {
+        const arr = typeof v === "string" ? JSON.parse(v) : v;
+        if (Array.isArray(arr) && arr.length) return arr[0];
+      } catch (e) {
+        return typeof v === "string" ? v : "";
+      }
+      return "";
+    };
+    // Destacados: con foto primero, sin repetir nombre+tienda, hasta 6.
+    const seen = new Set();
+    const featured = [];
+    const withPhoto = listRes.rows.filter((p) => firstImage(p.image_url));
+    const withoutPhoto = listRes.rows.filter((p) => !firstImage(p.image_url));
+    for (const p of [...withPhoto, ...withoutPhoto]) {
+      const key = `${String(p.store_slug || p.store_name || "").toLowerCase()}|${String(p.name || "").toLowerCase().trim().replace(/\s+/g, " ")}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const img = firstImage(p.image_url);
+      featured.push({ ...p, image_url: img ? JSON.stringify([img]) : "[]" });
+      if (featured.length >= 6) break;
+    }
+    // Portada de cada tienda: la primera foto de su primer producto.
+    const covers = {};
+    for (const p of listRes.rows) {
+      const slug = String(p.store_slug || "").toLowerCase().trim();
+      if (slug && !(slug in covers)) {
+        const img = firstImage(p.image_url);
+        if (img) covers[slug] = img;
+      }
+    }
+    res.json({
+      stores: storesRes.rows[0].n,
+      products: productsRes.rows[0].n,
+      featured,
+      covers,
+    });
   } catch (err) {
     next(err);
   }
@@ -235,8 +314,12 @@ app.get("/api/public/all-products", async (req, res, next) => {
 
 app.get("/api/public/stores", async (req, res, next) => {
   try {
+    // ?slim=1: sin logo_url (la portada no usa logos; los logos en base64
+    // pesan ~470 KB en esta respuesta). Explorar sí usa los logos.
+    const logoCol =
+      req.query.slim === "1" ? "NULL AS logo_url" : "s.logo_url";
     const result = await pool.query(
-      `SELECT s.id, s.name, s.slug, s.logo_url, s.description, s.whatsapp, s.province_id, p.name AS province_name FROM stores s LEFT JOIN provinces p ON p.id = s.province_id WHERE s.is_active = TRUE AND s.is_suspended = FALSE AND (s.is_public_market = TRUE OR s.is_public_market::text = 'true') ORDER BY s.created_at DESC`,
+      `SELECT s.id, s.name, s.slug, ${logoCol}, s.description, s.whatsapp, s.province_id, p.name AS province_name FROM stores s LEFT JOIN provinces p ON p.id = s.province_id WHERE s.is_active = TRUE AND s.is_suspended = FALSE AND (s.is_public_market = TRUE OR s.is_public_market::text = 'true') ORDER BY s.created_at DESC`,
     );
     res.json(result.rows);
   } catch (err) {
@@ -249,14 +332,19 @@ app.get("/api/store/:identifier", async (req, res, next) => {
     const { identifier } = req.params;
     const isUUID = UUID_REGEX.test(identifier);
     const query = isUUID
-      ? "SELECT id, name, slug, description, whatsapp, logo_url, owner_name, is_suspended FROM stores WHERE id = $1"
-      : "SELECT id, name, slug, description, whatsapp, logo_url, owner_name, is_suspended FROM stores WHERE slug = $1";
+      ? "SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.owner_name, s.is_suspended, s.is_public_market, s.province_id, p.name AS province_name FROM stores s LEFT JOIN provinces p ON p.id = s.province_id WHERE s.id = $1"
+      : "SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.owner_name, s.is_suspended, s.is_public_market, s.province_id, p.name AS province_name FROM stores s LEFT JOIN provinces p ON p.id = s.province_id WHERE s.slug = $1";
 
     const storeRes = await pool.query(query, [identifier]);
     if (storeRes.rows.length === 0)
       return res.status(404).json({ error: "Tienda no encontrada" });
     if (storeRes.rows[0].is_suspended)
       return res.status(403).json({ error: "Tienda suspendida." });
+    // Una tienda oculta no se abre ni por enlace directo.
+    const pub = storeRes.rows[0].is_public_market;
+    if (pub === false || String(pub).toLowerCase() === "false")
+      return res.status(404).json({ error: "Tienda no encontrada" });
+    delete storeRes.rows[0].is_public_market;
 
     const store = storeRes.rows[0];
     const productsRes = await pool.query(
@@ -363,9 +451,18 @@ app.post("/api/register", authLimiter, async (req, res) => {
       slug = `${slug}-${Math.floor(Math.random() * 1000)}`;
 
     const hash = await bcrypt.hash(password, 10);
+    // La tienda nace visible en el mercado (antes nacía oculta hasta que
+    // el vendedor encontraba la casilla "Mercado Global" en Ajustes) y
+    // sin espacios al final del nombre ni del dueño.
     const storeRes = await client.query(
-      `INSERT INTO stores (name, slug, whatsapp, owner_name, password_hash) VALUES ($1, $2, $3, $4, $5) RETURNING ${SAFE_STORE_COLUMNS}`,
-      [name, slug, normalizedWhatsapp, ownerName, hash],
+      `INSERT INTO stores (name, slug, whatsapp, owner_name, password_hash, is_public_market) VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING ${SAFE_STORE_COLUMNS}`,
+      [
+        String(name).trim(),
+        slug,
+        normalizedWhatsapp,
+        String(ownerName || "").trim(),
+        hash,
+      ],
     );
     const newStore = storeRes.rows[0];
 
@@ -474,14 +571,14 @@ app.post("/api/products", authenticateToken, async (req, res, next) => {
       "INSERT INTO products (store_id, name, price_cup, price_usd, category, image_url, stock, is_visible) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
       [
         req.user.id,
-        name,
+        String(name).trim(),
         priceCup === undefined || priceCup === null || priceCup === ""
           ? 0
           : Number(priceCup),
         priceUsd === undefined || priceUsd === null || priceUsd === ""
           ? 0
           : Number(priceUsd),
-        category || null,
+        category ? String(category).trim() : null,
         imageUrl || null,
         stock === undefined || stock === null || stock === ""
           ? 1
@@ -518,14 +615,16 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
        stock=COALESCE($6, stock), is_visible=COALESCE($7, is_visible) 
        WHERE id=$8 RETURNING *`,
       [
-        name,
+        name === undefined || name === null ? null : String(name).trim(),
         priceCup === undefined || priceCup === null || priceCup === ""
           ? null
           : Number(priceCup),
         priceUsd === undefined || priceUsd === null || priceUsd === ""
           ? null
           : Number(priceUsd),
-        category,
+        category === undefined || category === null
+          ? null
+          : String(category).trim(),
         imageUrl,
         stock === undefined || stock === null || stock === ""
           ? null
@@ -596,8 +695,10 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
       RETURNING ${SAFE_STORE_COLUMNS};
     `;
     const values = [
-      name,
-      description,
+      String(name).trim(),
+      description === undefined || description === null
+        ? description
+        : String(description).trim(),
       logoUrl,
       normalizedWhatsapp,
       is_public_market,
@@ -818,6 +919,11 @@ app.get("/api/public/products/province/:id", async (req, res, next) => {
   }
   try {
     const { limit, offset } = parsePagination(req);
+    const q = String(req.query.q || "").trim();
+    const hasQ = q.length > 0;
+    const searchWhere = hasQ
+      ? `AND (p.name ILIKE $4 OR s.name ILIKE $4 OR p.category ILIKE $4)`
+      : "";
     const query = `
       SELECT 
         p.id, p.name, p.price_cup, p.price_usd, p.image_url, p.category, p.stock, p.description,
@@ -830,10 +936,12 @@ app.get("/api/public/products/province/:id", async (req, res, next) => {
         AND (s.is_suspended = false OR s.is_suspended::text = 'false')
         AND (p.is_visible = true OR p.is_visible::text = 'true')
         AND s.province_id = $1  -- <--- AQUÍ ESTÁ EL FILTRO MÁGICO
+        ${searchWhere}
       ORDER BY p.created_at DESC
       LIMIT $2 OFFSET $3;
     `;
-    const result = await pool.query(query, [id, limit, offset]);
+    const params = hasQ ? [id, limit, offset, `%${q}%`] : [id, limit, offset];
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     next(err);

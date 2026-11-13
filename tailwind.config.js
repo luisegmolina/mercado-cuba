@@ -4,8 +4,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        display: ["Sora", "Inter", "system-ui", "sans-serif"],
-        sans: ["Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        display: ["Sora Variable", "Sora", "Inter", "system-ui", "sans-serif"],
+        sans: ["Inter Variable", "Inter", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
       },
       colors: {
         // Mar: azules de mar y cielo para el tema fresco tropical.

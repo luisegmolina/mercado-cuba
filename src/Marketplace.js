@@ -19,6 +19,7 @@ import {
   waLink,
   orderMessage,
   ProductDetailModal,
+  cleanName,
 } from "./shared";
 
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
@@ -75,14 +76,23 @@ const GlobalMarketplace = () => {
   // 2. Función para cargar productos cuando el usuario elige provincia.
   // append=false reemplaza la lista (cambio de provincia o de búsqueda);
   // append=true añade la siguiente página ("Cargar más").
-  const loadProducts = async (province, startOffset = 0, append = false) => {
+  // La búsqueda va al servidor (?q=): antes solo filtraba los 20
+  // productos ya descargados y "lavadora" o "moto" no daban nada.
+  const loadProducts = async (
+    province,
+    startOffset = 0,
+    append = false,
+    searchText = filterText,
+  ) => {
     setLoading(true);
     setLoadError(null);
     try {
+      const q = String(searchText || "").trim();
+      const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
       const url =
         province.id === "all"
-          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}`
-          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}`;
+          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}`
+          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
@@ -177,7 +187,7 @@ const GlobalMarketplace = () => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
       if (selectedProvince && view === "products")
-        loadProducts(selectedProvince, 0, false);
+        loadProducts(selectedProvince, 0, false, v);
     }, 500);
   };
 
@@ -399,7 +409,7 @@ const GlobalMarketplace = () => {
                       {s.logo_url ? (
                         <img
                           src={s.logo_url}
-                          alt={s.name}
+                          alt={cleanName(s.name)}
                           loading="lazy"
                           className="w-full h-full object-cover"
                         />
@@ -409,7 +419,7 @@ const GlobalMarketplace = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm font-bold text-slate-900 truncate">
-                        {s.name}
+                        {cleanName(s.name)}
                       </h3>
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                         <MapPin size={12} />{" "}
@@ -492,6 +502,9 @@ const GlobalMarketplace = () => {
         <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up max-w-5xl mx-auto w-full">
           {filtered.map((p) => {
             const mainImg = parseImages(p.image_url)[0];
+            const isOut = Number(p.stock) === 0;
+            const hasPrice =
+              Number(p.price_cup) > 0 || Number(p.price_usd) > 0;
             return (
               <div
                 key={p.id}
@@ -502,7 +515,7 @@ const GlobalMarketplace = () => {
                   {mainImg ? (
                     <img
                       src={mainImg}
-                      alt={p.name}
+                      alt={cleanName(p.name)}
                       loading="lazy"
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
@@ -510,6 +523,11 @@ const GlobalMarketplace = () => {
                     <div className="w-full h-full flex items-center justify-center">
                       <ImageIcon className="text-slate-700" />
                     </div>
+                  )}
+                  {isOut && (
+                    <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full z-10">
+                      Agotado
+                    </span>
                   )}
                   <div
                     onClick={(e) => {
@@ -520,14 +538,14 @@ const GlobalMarketplace = () => {
                   >
                     <Store size={10} className="text-cyan-700 shrink-0" />
                     <span className="text-[11px] font-bold text-white">
-                      {p.store_name}
+                      {cleanName(p.store_name)}
                     </span>
                   </div>
                 </div>
 
                 <div className="p-3 flex-1 flex flex-col gap-1">
                   <h3 className="text-sm font-bold text-slate-900 line-clamp-2 min-h-10">
-                    {p.name}
+                    {cleanName(p.name)}
                   </h3>
                   <div className="mt-auto pt-2">
                     <div className="flex flex-wrap gap-1 items-baseline mb-2">
@@ -541,32 +559,46 @@ const GlobalMarketplace = () => {
                           {formatPrice(p.price_usd, "USD")}
                         </span>
                       )}
+                      {!hasPrice && (
+                        <span className="text-xs text-slate-500 font-bold">
+                          Precio a consultar
+                        </span>
+                      )}
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(
-                          waLink(
-                            p.store_whatsapp,
-                            orderMessage({
-                              name: p.name,
-                              prices: priceLabel(p),
-                              storeName: p.store_name,
-                              province:
-                                p.store_province ||
-                                (selectedProvince.id !== "all"
-                                  ? selectedProvince.name
-                                  : ""),
-                              slug: p.store_slug,
-                            }),
-                          ),
-                          "_blank",
-                        );
-                      }}
-                      className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 py-2.5 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 shadow-glow"
-                    >
-                      <MessageCircle size={12} /> Pedir
-                    </button>
+                    {isOut ? (
+                      <button
+                        disabled
+                        className="w-full bg-slate-100 border border-slate-200 text-slate-500 py-2.5 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2"
+                      >
+                        Agotado
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(
+                            waLink(
+                              p.store_whatsapp,
+                              orderMessage({
+                                name: p.name,
+                                prices: priceLabel(p),
+                                storeName: p.store_name,
+                                province:
+                                  p.store_province ||
+                                  (selectedProvince.id !== "all"
+                                    ? selectedProvince.name
+                                    : ""),
+                                slug: p.store_slug,
+                              }),
+                            ),
+                            "_blank",
+                          );
+                        }}
+                        className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 py-2.5 rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 shadow-glow"
+                      >
+                        <MessageCircle size={12} /> Pedir
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

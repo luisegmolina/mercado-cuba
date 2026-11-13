@@ -1,3 +1,10 @@
+/* Fuentes autoalojadas vía Fontsource (antes Google Fonts): en Cuba la
+   CDN de Google a veces no responde y la web quedaba con la fuente del
+   sistema. Variables: un solo woff2 por familia cubre todos los pesos;
+   el navegador descarga solo el subconjunto latino. */
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/sora/wght.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

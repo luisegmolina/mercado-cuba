@@ -19,6 +19,7 @@ import {
   ProductDetailModal,
   CUBA_HERO,
   firstProductImage,
+  cleanName,
 } from "./shared";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
@@ -78,34 +79,6 @@ import {
  */
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 
-// Destacados: primero los que tienen foto, sin repetir el mismo
-// producto de la misma tienda, hasta 6. Los sin foto solo completan.
-// Fuera del componente a propósito: si vive dentro, el build de
-// Cloudflare (CI=true) lo toma como dependencia reactiva y el
-// useEffect de la landing falla con react-hooks/exhaustive-deps.
-const pickFeatured = (list) => {
-  const seen = new Set();
-  const key = (p) =>
-    `${(p.store_slug || p.store_name || "").toLowerCase()}|${(p.name || "")
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, " ")}`;
-  const withPhoto = list.filter(
-    (p) => parseImages(p.image_url).length > 0,
-  );
-  const withoutPhoto = list.filter(
-    (p) => parseImages(p.image_url).length === 0,
-  );
-  const out = [];
-  for (const p of [...withPhoto, ...withoutPhoto]) {
-    const k = key(p);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(p);
-    if (out.length >= 6) break;
-  }
-  return out;
-};
 const APP_NAME = "Mercado Cuba";
 
 /** * --- UTILIDADES DE PROCESAMIENTO ---
@@ -758,7 +731,7 @@ const ManualModal = ({ onClose, contact }) => (
             📸 3. Subir Productos
           </h3>
           <p className="text-sm mb-2 text-slate-500">
-            Ve a la pestaña <strong>Productos</strong> (田):
+            Ve a la pestaña <strong>Productos</strong> (Productos):
           </p>
           <ul className="list-disc pl-5 space-y-1 text-sm marker:text-cyan-600">
             <li>
@@ -823,7 +796,8 @@ const LandingPage = () => {
   const loadLandingData = async () => {
     setStoresError(false);
     try {
-      const res = await fetch(`${API_URL}/public/stores`);
+      // ?slim=1: sin logos en base64 (la portada no los usa).
+      const res = await fetch(`${API_URL}/public/stores?slim=1`);
       if (!res.ok) throw new Error("No se pudieron cargar las tiendas");
       const data = await res.json();
       setStores(Array.isArray(data) ? data : []);
@@ -832,22 +806,20 @@ const LandingPage = () => {
       setStoresError(true);
     }
     try {
-      const res = await fetch(`${API_URL}/public/all-products?limit=100`);
+      // Vitrina ligera: conteos exactos, 6 destacados y portadas
+      // (solo la primera foto de cada uno). Antes se descargaba
+      // all-products entero (~4,9 MB) solo para esto.
+      const res = await fetch(`${API_URL}/public/landing`);
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      setFeatured(pickFeatured(list));
-      setProductsTotal(list.length >= 100 ? "100+" : String(list.length));
+      setFeatured(Array.isArray(data.featured) ? data.featured : []);
+      setProductsTotal(
+        data.products === undefined || data.products === null
+          ? null
+          : String(data.products),
+      );
       // Portada de cada tienda: la foto de su primer producto.
-      const coverMap = {};
-      for (const p of list) {
-        const slug = (p.store_slug || "").toLowerCase().trim();
-        if (slug && !coverMap[slug]) {
-          const imgs = parseImages(p.image_url);
-          if (imgs.length) coverMap[slug] = imgs[0];
-        }
-      }
-      setCovers(coverMap);
+      setCovers(data.covers || {});
     } catch (e) {
       setFeatured([]);
       setProductsTotal(null);
@@ -862,7 +834,19 @@ const LandingPage = () => {
     e.preventDefault();
     const val = input.trim().toLowerCase().replace(/\s+/g, "-");
     if (!val) return;
-    navigate(`/${val}`);
+    // Si el slug exacto existe, entrar directo. Si no, filtrar la lista
+    // de tiendas de esta misma página (antes iba a "Tienda no encontrada"
+    // con solo escribir el nombre, p. ej. "Moda Las Tunas").
+    const exact = stores.find((s) => storeSlug(s) === val);
+    if (exact) {
+      navigate(`/${storeSlug(exact)}`);
+      return;
+    }
+    setStoreQuery(input.trim());
+    setStoresVisible(12);
+    document
+      .getElementById("tiendas-en-el-mercado")
+      ?.scrollIntoView({ behavior: "smooth" });
   };
 
   const storeSlug = (s) =>
@@ -1204,15 +1188,21 @@ const LandingPage = () => {
                   onClick={() => setDetailProduct(p)}
                   className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
                 >
-                  <div className="aspect-square bg-sky-50 overflow-hidden">
+                  <div className="aspect-square bg-sky-50 overflow-hidden relative">
                     <SafeImage
                       src={parseImages(p.image_url)[0]}
+                      alt={cleanName(p.name)}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
+                    {Number(p.stock) === 0 && (
+                      <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
+                        Agotado
+                      </span>
+                    )}
                   </div>
                   <div className="p-3 sm:p-4">
                     <p className="text-sm font-bold text-slate-900 line-clamp-2">
-                      {p.name}
+                      {cleanName(p.name)}
                     </p>
                     <p className="text-sm text-cyan-700 font-black mt-1">
                       {priceLabel(p)}
@@ -1317,7 +1307,7 @@ const LandingPage = () => {
 
         {/* --- TIENDAS EN EL MERCADO (con foto de portada) --- */}
         {stores.length > 0 && (
-          <div className="animate-fade-in-up">
+          <div className="animate-fade-in-up" id="tiendas-en-el-mercado">
             <div className="flex items-end justify-between gap-3 mb-3">
               <div>
                 <h2 className="font-display text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
@@ -1355,14 +1345,14 @@ const LandingPage = () => {
                   >
                     <img
                       src={cover}
-                      alt={s.name}
+                      alt={cleanName(s.name)}
                       loading="lazy"
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-950/25 to-transparent" />
                     <div className="absolute bottom-0 left-0 right-0 p-3">
                       <p className="text-sm font-bold text-white leading-tight line-clamp-2">
-                        {s.name}
+                        {cleanName(s.name)}
                       </p>
                       {s.province_name && (
                         <p className="text-[11px] text-sky-100 font-medium mt-0.5 flex items-center gap-1">
@@ -1546,7 +1536,7 @@ const StoreFrontend = () => {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="font-display font-bold text-lg truncate text-slate-900">
-            {store.name}
+            {cleanName(store.name)}
           </h1>
         </div>
         <button
@@ -1560,7 +1550,7 @@ const StoreFrontend = () => {
       <div className="relative h-48 sm:h-60 overflow-hidden">
         <img
           src={coverImage}
-          alt={store.name}
+          alt={cleanName(store.name)}
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-sky-950/85 via-sky-950/25 to-transparent" />
@@ -1568,13 +1558,14 @@ const StoreFrontend = () => {
           <div className="w-14 h-14 rounded-2xl ring-2 ring-white/70 bg-white overflow-hidden shrink-0 shadow-lg">
             <SafeImage
               src={store.logo_url}
+              alt={cleanName(store.name)}
               className="w-full h-full object-cover"
               fallbackIcon={Store}
             />
           </div>
           <div className="min-w-0">
             <h2 className="font-display font-extrabold text-2xl text-white leading-tight truncate">
-              {store.name}
+              {cleanName(store.name)}
             </h2>
             {provinceName && (
               <p className="text-xs text-sky-100 font-medium flex items-center gap-1 mt-0.5">
@@ -1642,16 +1633,27 @@ const StoreFrontend = () => {
         </div>
       )}
       <div className="px-4 pb-4 grid grid-cols-2 gap-3">
-        {filtered.slice(0, visibleCount).map((p) => (
+        {filtered.slice(0, visibleCount).map((p) => {
+          const isOut = Number(p.stock) === 0;
+          const hasPrice =
+            Number(p.price_cup) > 0 || Number(p.price_usd) > 0;
+          return (
           <div
             key={p.id}
             onClick={() => setDetailProduct(p)}
             className="group bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
           >
-            <ImageGallery imagesStr={p.image_url} />
+            <div className="relative">
+              <ImageGallery imagesStr={p.image_url} />
+              {isOut && (
+                <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full z-10">
+                  Agotado
+                </span>
+              )}
+            </div>
             <div className="p-3 flex-1 flex flex-col">
               <h3 className="text-sm font-bold text-slate-900 line-clamp-2 mb-2">
-                {p.name}
+                {cleanName(p.name)}
               </h3>
               <div className="mt-auto flex flex-col gap-1.5">
                 <div className="flex flex-wrap gap-1 items-baseline">
@@ -1665,20 +1667,35 @@ const StoreFrontend = () => {
                       {formatPrice(p.price_usd, "USD")}
                     </span>
                   )}
+                  {!hasPrice && (
+                    <span className="text-xs text-slate-500 font-bold">
+                      Precio a consultar
+                    </span>
+                  )}
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    contact(p);
-                  }}
-                  className="w-full mt-1 bg-gradient-to-r from-cyan-600 to-sky-600 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-glow"
-                >
-                  <MessageCircle size={14} /> Pedir
-                </button>
+                {isOut ? (
+                  <button
+                    disabled
+                    className="w-full mt-1 bg-slate-100 border border-slate-200 text-slate-500 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
+                  >
+                    Agotado
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      contact(p);
+                    }}
+                    className="w-full mt-1 bg-gradient-to-r from-cyan-600 to-sky-600 text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-glow"
+                  >
+                    <MessageCircle size={14} /> Pedir
+                  </button>
+                )}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       {filtered.length > 0 && (
         <div className="px-4 pb-4 text-center space-y-3">
@@ -1822,12 +1839,27 @@ const AuthScreen = ({ mode }) => {
           </form>
           <div className="mt-6 text-center space-y-3">
             {currMode === "login" && (
-              <button
-                onClick={() => setCurrMode("register")}
-                className="text-cyan-700 text-sm block w-full hover:text-cyan-700"
-              >
-                ¿Eres nuevo? Regístrate
-              </button>
+              <>
+                <button
+                  onClick={() => setCurrMode("register")}
+                  className="text-cyan-700 text-sm block w-full hover:text-cyan-700"
+                >
+                  ¿Eres nuevo? Regístrate
+                </button>
+                {superAdminContact && (
+                  <a
+                    href={waLink(
+                      superAdminContact,
+                      `Olvidé la contraseña de mi tienda (WhatsApp: ${form.whatsapp || "sin indicar"})`,
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-slate-500 text-sm block w-full hover:text-slate-800"
+                  >
+                    ¿Olvidaste tu contraseña? Escríbele al administrador
+                  </a>
+                )}
+              </>
             )}
             {currMode === "register" &&
               (superAdminContact ? (
@@ -1931,6 +1963,25 @@ const VendorDashboard = () => {
 
   const submitP = async (e) => {
     e.preventDefault();
+    const cup = Number(formP.priceCup) || 0;
+    const usd = Number(formP.priceUsd) || 0;
+    if (cup <= 0 && usd <= 0) {
+      notify("Pon al menos un precio (CUP o USD) para publicar el producto.");
+      return;
+    }
+    // El cambio informal ronda ~400 CUP por USD: si la relación sale de
+    // 100–1000, casi seguro un precio quedó mal escrito.
+    if (cup > 0 && usd > 0) {
+      const ratio = cup / usd;
+      if (
+        (ratio < 100 || ratio > 1000) &&
+        !window.confirm(
+          `Revisa los precios: ${cup} CUP por ${usd} USD suena raro (la tasa informal ronda 400 CUP por USD). ¿Guardar así de todas formas?`,
+        )
+      ) {
+        return;
+      }
+    }
     await saveProduct(formP, !!editP);
     setModal(false);
   };
@@ -2327,10 +2378,24 @@ const VendorDashboard = () => {
                 <Input
                   label="Categoría"
                   value={formP.category || ""}
+                  list="categorias-sugeridas"
+                  placeholder="Ej.: Alimentos"
                   onChange={(e) =>
                     setFormP({ ...formP, category: e.target.value })
                   }
                 />
+                <datalist id="categorias-sugeridas">
+                  <option value="Alimentos" />
+                  <option value="Electrodomésticos" />
+                  <option value="Celulares" />
+                  <option value="Ropa y calzado" />
+                  <option value="Hogar" />
+                  <option value="Motos" />
+                  <option value="Belleza" />
+                  <option value="Salud" />
+                  <option value="Ferretería" />
+                  <option value="Juguetes" />
+                </datalist>
               </div>
               <div className="flex-1">
                 <Input
@@ -2479,7 +2544,7 @@ const SuperAdminPanel = () => {
     <div className="min-h-screen bg-[#F2FBFC] pb-20">
       <nav className="bg-white p-4 sticky top-0 z-20 flex justify-between shadow-lg border-b border-slate-200">
         <h2 className="font-bold text-slate-900 tracking-widest uppercase">
-          Master Panel
+          Panel del Administrador
         </h2>
         <button
           onClick={() => {

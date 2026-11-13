@@ -47,19 +47,25 @@ export const waLink = (raw, text) => {
 };
 
 // --- PRECIOS ---
-// Un solo formato para toda la app: español (2.000,00 CUP).
+// Un solo formato para toda la app: español (2.700 CUP).
+// Sin decimales cuando el precio es entero ("2.700 CUP", no "2.700,00 CUP").
 export const formatPrice = (value, code) => {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return "";
+  const decimals = Number.isInteger(n) ? 0 : 2;
   return (
     n.toLocaleString("es-ES", {
-      minimumFractionDigits: 2,
+      minimumFractionDigits: decimals,
       maximumFractionDigits: 2,
     }) +
     " " +
     code
   );
 };
+
+// Nombres sin espacios al inicio/fin (hay tiendas y productos guardados
+// con espacios al final). Para mostrar, nunca para guardar.
+export const cleanName = (v) => String(v ?? "").trim();
 
 export const priceLabel = (p) => {
   const parts = [
@@ -104,7 +110,12 @@ export const firstProductImage = (list) => {
   return "";
 };
 
-export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) => {
+export const SafeImage = ({
+  src,
+  className,
+  alt = "Foto del producto",
+  fallbackIcon: Icon = ImageIcon,
+}) => {
   const [error, setError] = useState(false);
   useEffect(() => setError(false), [src]);
 
@@ -120,7 +131,7 @@ export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) =>
   return (
     <img
       src={src}
-      alt="img"
+      alt={alt}
       className={className}
       onError={() => setError(true)}
       loading="lazy"
@@ -153,6 +164,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
   const province =
     product.store_province || store?.province_name || store?.province || "";
   const stock = product.stock;
+  const isOut = Number(stock) === 0;
   const prev = () => setIdx((i) => (i - 1 + imgs.length) % imgs.length);
   const next = () => setIdx((i) => (i + 1) % imgs.length);
 
@@ -171,6 +183,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
             <div className="aspect-square overflow-hidden">
               <SafeImage
                 src={imgs[idx]}
+                alt={cleanName(product.name)}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -217,6 +230,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                 >
                   <SafeImage
                     src={src}
+                    alt={`${cleanName(product.name)} (${i + 1})`}
                     className="w-full h-full object-cover"
                   />
                 </button>
@@ -227,7 +241,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
           {/* Datos del producto */}
           <div className="p-5 space-y-2">
             <h2 className="font-display text-xl font-extrabold text-slate-900 leading-snug">
-              {product.name}
+              {cleanName(product.name)}
             </h2>
             <p className="text-lg font-black bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
               {priceLabel(product)}
@@ -271,25 +285,33 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               </p>
             )}
             <div className="pt-3 space-y-2">
-              {storeWhatsapp && (
-                <a
-                  href={waLink(
-                    storeWhatsapp,
-                    orderMessage({
-                      name: product.name,
-                      prices: priceLabel(product),
-                      storeName,
-                      province,
-                      slug: storeSlug,
-                    }),
-                  )}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
-                >
-                  <MessageCircle size={18} /> Pedir por WhatsApp
-                </a>
-              )}
+              {storeWhatsapp &&
+                (isOut ? (
+                  <button
+                    disabled
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-500 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+                  >
+                    Agotado
+                  </button>
+                ) : (
+                  <a
+                    href={waLink(
+                      storeWhatsapp,
+                      orderMessage({
+                        name: product.name,
+                        prices: priceLabel(product),
+                        storeName,
+                        province,
+                        slug: storeSlug,
+                      }),
+                    )}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
+                  >
+                    <MessageCircle size={18} /> Pedir por WhatsApp
+                  </a>
+                ))}
               {storeSlug && (
                 <button
                   onClick={() => {
