@@ -174,9 +174,9 @@ export const RatesBanner = () => {
   }, []);
   if (!rates) return null;
   const updatedAt = rates[0]?.updated_at;
-  return (
-    <div className="bg-slate-900 text-white px-3 py-1.5 text-xs flex items-center justify-center gap-x-2 gap-y-0.5 flex-wrap text-center">
-      <span className="font-bold">💵 Tasa informal</span>
+  // Contenido del ticker (se repite dos veces para el bucle sin salto).
+  const tickerContent = (
+    <span className="flex items-center gap-x-2 pr-2">
       {rates.map((r) => (
         <span key={r.currency} className="font-mono">
           {r.currency} {formatPrice(r.rate_cup, "CUP")}
@@ -186,11 +186,22 @@ export const RatesBanner = () => {
         · {updatedAt ? `Actualizado ${timeAgo(updatedAt)} · ` : ""}Fuente:
         elTOQUE
       </span>
+    </span>
+  );
+  return (
+    <div className="rates-ticker bg-slate-900 text-white px-3 py-1.5 text-xs flex items-center gap-x-2 overflow-hidden">
+      <span className="font-bold shrink-0">💵 Tasa informal</span>
+      <div className="flex-1 overflow-hidden">
+        <div className="rates-ticker-track flex items-center whitespace-nowrap w-max">
+          {tickerContent}
+          <span aria-hidden="true">{tickerContent}</span>
+        </div>
+      </div>
       <a
         href={ELTOQUE_RATES_URL}
         target="_blank"
         rel="noreferrer"
-        className="underline text-cyan-300"
+        className="underline text-cyan-300 shrink-0"
       >
         Ver en elTOQUE
       </a>

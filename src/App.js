@@ -142,7 +142,9 @@ const ToastProvider = ({ children }) => {
             className={`pointer-events-auto p-4 rounded-xl shadow-2xl flex items-center gap-3 border transition-all animate-bounce-in ${
               t.type === "success"
                 ? "bg-white border-emerald-500 text-emerald-600"
-                : "bg-white border-rose-400 text-rose-600"
+                : t.type === "warning"
+                  ? "bg-white border-amber-400 text-amber-600"
+                  : "bg-white border-rose-400 text-rose-600"
             }`}
           >
             {t.type === "success" ? (
@@ -2119,6 +2121,9 @@ const VendorDashboard = () => {
   const [modal, setModal] = useState(false);
   const [editP, setEditP] = useState(null);
   const [formP, setFormP] = useState({});
+  // Confirmación en dos toques para el diálogo de producto: el primer
+  // Guardar con proporción rara solo avisa, el segundo confirma.
+  const [confirmP, setConfirmP] = useState(null);
   // Buscador y paginación de mis productos (10 por página).
   const [prodQuery, setProdQuery] = useState("");
   const [prodPage, setProdPage] = useState(1);
@@ -2126,6 +2131,12 @@ const VendorDashboard = () => {
   // Solo se guarda lo que el vendedor cambió; al guardar se limpia.
   const [quickEdits, setQuickEdits] = useState({});
   const [quickBusy, setQuickBusy] = useState({});
+  // Confirmación en dos toques para la edición rápida: el primer
+  // Guardar con proporción rara solo avisa (guarda {id, cup, usd}),
+  // el segundo confirma. Nada de diálogos nativos (window.confirm):
+  // en el navegador automático se descartan solos y el guardado
+  // moría en silencio, sin ningún aviso.
+  const [confirmQuick, setConfirmQuick] = useState(null);
 
   const quickValues = (p) => ({
     priceCup: quickEdits[p.id]?.priceCup ?? p.price_cup ?? 0,
@@ -2141,12 +2152,14 @@ const VendorDashboard = () => {
       Number(q.stock) !== Number(p.stock ?? 0)
     );
   };
-  const clearQuickEdit = (id) =>
+  const clearQuickEdit = (id) => {
+    setConfirmQuick(null);
     setQuickEdits((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
+  };
   const setQuickBusyId = (id, busy) =>
     setQuickBusy((prev) => ({ ...prev, [id]: busy }));
 
@@ -2159,16 +2172,25 @@ const VendorDashboard = () => {
       return;
     }
     // Misma cordura que en el formulario completo: la tasa informal
-    // ronda ~400 CUP por USD; fuera de 100–1000 casi seguro hay un error.
+    // hoy ronda ~910 CUP por USD; fuera de 100–1000 casi seguro hay
+    // un error. Primer toque solo avisa; el segundo confirma.
     if (cup > 0 && usd > 0) {
       const ratio = cup / usd;
-      if (
-        (ratio < 100 || ratio > 1000) &&
-        !window.confirm(
-          `Revisa los precios: ${cup} CUP por ${usd} USD suena raro (la tasa informal ronda 400 CUP por USD). ¿Guardar así de todas formas?`,
-        )
-      ) {
-        return;
+      if (ratio < 100 || ratio > 1000) {
+        const confirmed =
+          confirmQuick &&
+          confirmQuick.id === p.id &&
+          confirmQuick.cup === cup &&
+          confirmQuick.usd === usd;
+        if (!confirmed) {
+          setConfirmQuick({ id: p.id, cup, usd });
+          notify(
+            `Revisa los precios: ${cup} CUP por ${usd} USD está muy lejos de la tasa informal. Pulsa Guardar de nuevo para confirmar.`,
+            "warning",
+          );
+          return;
+        }
+        setConfirmQuick(null);
       }
     }
     setQuickBusyId(p.id, true);
@@ -2224,6 +2246,7 @@ const VendorDashboard = () => {
 
   const openModal = (p) => {
     setEditP(p);
+    setConfirmP(null);
     setFormP(
       p
         ? {
@@ -2257,17 +2280,23 @@ const VendorDashboard = () => {
       notify("Pon al menos un precio (CUP o USD) para publicar el producto.");
       return;
     }
-    // El cambio informal ronda ~400 CUP por USD: si la relación sale de
-    // 100–1000, casi seguro un precio quedó mal escrito.
+    // La tasa informal hoy ronda ~910 CUP por USD: si la relación
+    // sale de 100–1000, casi seguro un precio quedó mal escrito.
+    // Primer Guardar solo avisa; el segundo confirma.
     if (cup > 0 && usd > 0) {
       const ratio = cup / usd;
-      if (
-        (ratio < 100 || ratio > 1000) &&
-        !window.confirm(
-          `Revisa los precios: ${cup} CUP por ${usd} USD suena raro (la tasa informal ronda 400 CUP por USD). ¿Guardar así de todas formas?`,
-        )
-      ) {
-        return;
+      if (ratio < 100 || ratio > 1000) {
+        const confirmed =
+          confirmP && confirmP.cup === cup && confirmP.usd === usd;
+        if (!confirmed) {
+          setConfirmP({ cup, usd });
+          notify(
+            `Revisa los precios: ${cup} CUP por ${usd} USD está muy lejos de la tasa informal. Pulsa Guardar de nuevo para confirmar.`,
+            "warning",
+          );
+          return;
+        }
+        setConfirmP(null);
       }
     }
     await saveProduct(formP, !!editP);
@@ -2517,7 +2546,10 @@ const VendorDashboard = () => {
                         disabled={!dirty || busy}
                         className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl bg-cyan-600 text-white text-xs font-bold disabled:opacity-40"
                       >
-                        <Save size={14} /> Guardar
+                        <Save size={14} />{" "}
+                        {confirmQuick && confirmQuick.id === p.id
+                          ? "Confirmar"
+                          : "Guardar"}
                       </button>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">

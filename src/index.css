@@ -157,3 +157,30 @@ code {
   font-family:
     source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
+
+/* Ticker de tasas (tipo noticias de TV): el contenido entra por la
+   derecha y sale por la izquierda, en bucle sin salto. El track lleva
+   el contenido dos veces y se desplaza -50%; al pasar el mouse o tocar
+   se pausa para poder leer. */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.rates-ticker-track {
+  animation: ticker-scroll 35s linear infinite;
+}
+
+.rates-ticker:hover .rates-ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rates-ticker-track {
+    animation: none;
+  }
+}
