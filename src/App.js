@@ -3237,12 +3237,12 @@ const SuperAdminPanel = () => {
           </Card>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {["stores", "codes", "rates", "loc", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-full text-xs font-bold uppercase transition-all ${tab === t ? "bg-cyan-600 text-white" : "bg-white text-slate-500 border border-slate-200"}`}
+              className={`px-4 py-2 rounded-full text-xs font-bold uppercase transition-all ${tab === t ? "bg-cyan-600 text-white" : "bg-white text-slate-500 border border-slate-200"}`}
             >
               {t === "stores"
                 ? "Tiendas"
