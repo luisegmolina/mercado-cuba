@@ -35,6 +35,11 @@ const GlobalMarketplace = () => {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [detailProduct, setDetailProduct] = useState(null);
+  // Vista tras elegir provincia: "stores" (tiendas, por defecto) o "products".
+  const [view, setView] = useState("stores");
+  const [stores, setStores] = useState([]);
+  const [storesLoading, setStoresLoading] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
 
   // Estado crucial: Si es null, mostramos el selector. Si tiene ID, mostramos productos.
   // id "all" = todas las provincias (endpoint /public/all-products).
@@ -94,6 +99,30 @@ const GlobalMarketplace = () => {
     }
   };
 
+  // 3. Cargar tiendas cuando el usuario elige provincia. El backend ya
+  // devuelve slug y provincia, así que el filtro por provincia es local.
+  const loadStores = async (province) => {
+    setStoresLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(`${API_URL}/public/stores`);
+      if (!res.ok) throw new Error("No se pudieron cargar las tiendas");
+      const data = await res.json();
+      const all = Array.isArray(data) ? data : data.items || [];
+      const list =
+        province.id === "all"
+          ? all
+          : all.filter((s) => s.province_id === province.id);
+      setStores(list);
+    } catch (err) {
+      console.error(err);
+      setStores([]);
+      setLoadError("stores");
+    } finally {
+      setStoresLoading(false);
+    }
+  };
+
   const handleSelectProvince = (provinceId, provinceName) => {
     const province = { id: provinceId, name: provinceName };
     setSelectedProvince(province);
@@ -101,7 +130,25 @@ const GlobalMarketplace = () => {
     setOffset(0);
     setHasMore(false);
     setProducts([]);
-    loadProducts(province, 0, false);
+    setProductsLoaded(false);
+    setView("stores");
+    setStores([]);
+    loadStores(province);
+  };
+
+  // Cambiar entre Tiendas y Productos. Los productos se cargan la primera
+  // vez que se piden, para no hacer dos peticiones al elegir provincia.
+  const switchView = (next) => {
+    setView(next);
+    if (
+      next === "products" &&
+      selectedProvince &&
+      !productsLoaded &&
+      !loading
+    ) {
+      setProductsLoaded(true);
+      loadProducts(selectedProvince, 0, false);
+    }
   };
 
   const handleBackToSelector = () => {
@@ -111,6 +158,9 @@ const GlobalMarketplace = () => {
     setLoadError(null);
     setOffset(0);
     setHasMore(false);
+    setView("stores");
+    setStores([]);
+    setProductsLoaded(false);
   };
 
   const handleLoadMore = () => {
@@ -126,7 +176,8 @@ const GlobalMarketplace = () => {
     setFilterText(v);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      if (selectedProvince) loadProducts(selectedProvince, 0, false);
+      if (selectedProvince && view === "products")
+        loadProducts(selectedProvince, 0, false);
     }, 500);
   };
 
@@ -135,6 +186,15 @@ const GlobalMarketplace = () => {
     (p) =>
       (p.name || "").toLowerCase().includes(filterText.toLowerCase()) ||
       (p.store_name || "").toLowerCase().includes(filterText.toLowerCase()),
+  );
+
+  // Tiendas filtradas por el buscador (nombre o provincia).
+  const filteredStores = (Array.isArray(stores) ? stores : []).filter(
+    (s) =>
+      (s.name || "").toLowerCase().includes(filterText.toLowerCase()) ||
+      (s.province_name || "")
+        .toLowerCase()
+        .includes(filterText.toLowerCase()),
   );
 
   // --- VISTA DE CARGA INICIAL (Solo carga provincias) ---
@@ -263,13 +323,149 @@ const GlobalMarketplace = () => {
           />
           <input
             className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
-            placeholder={`Buscar en ${selectedProvince.name}...`}
+            placeholder={
+              view === "stores"
+                ? `Buscar tiendas en ${selectedProvince.name}...`
+                : `Buscar en ${selectedProvince.name}...`
+            }
             value={filterText}
             onChange={handleSearchChange}
           />
         </div>
       </div>
 
+      {/* Tiendas / Productos */}
+      <div className="px-4 pb-2">
+        <div className="max-w-5xl mx-auto w-full bg-white border border-slate-200 rounded-2xl p-1 grid grid-cols-2 gap-1">
+          <button
+            onClick={() => switchView("stores")}
+            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              view === "stores"
+                ? "bg-gradient-to-r from-cyan-600 to-sky-600 text-white shadow-glow"
+                : "text-slate-500 hover:bg-sky-100"
+            }`}
+          >
+            <Store size={14} /> Tiendas
+            {stores.length > 0 ? ` (${stores.length})` : ""}
+          </button>
+          <button
+            onClick={() => switchView("products")}
+            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              view === "products"
+                ? "bg-gradient-to-r from-cyan-600 to-sky-600 text-white shadow-glow"
+                : "text-slate-500 hover:bg-sky-100"
+            }`}
+          >
+            <ShoppingBag size={14} /> Productos
+          </button>
+        </div>
+      </div>
+
+      {view === "stores" ? (
+        <>
+          {storesLoading ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <Loader2 className="animate-spin text-cyan-700" size={32} />
+              <p className="text-slate-500 text-sm font-bold">
+                Cargando tiendas...
+              </p>
+            </div>
+          ) : loadError === "stores" ? (
+            <div className="text-center py-20 px-6">
+              <AlertCircle size={48} className="mx-auto mb-4 text-rose-600" />
+              <p className="text-sm text-slate-600 mb-4">
+                No se pudieron cargar las tiendas.
+              </p>
+              <button
+                onClick={() => loadStores(selectedProvince)}
+                className="bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-glow"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : (
+            <div className="px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in-up max-w-5xl mx-auto w-full">
+              {filteredStores.map((s) => {
+                const slug =
+                  s.slug ||
+                  (s.name || "").toLowerCase().trim().replace(/\s+/g, "-");
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => navigate(`/${slug}`)}
+                    className="group bg-white rounded-3xl overflow-hidden border border-slate-200 flex items-center gap-4 p-4 shadow-xl cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-sky-50 flex items-center justify-center overflow-hidden shrink-0">
+                      {s.logo_url ? (
+                        <img
+                          src={s.logo_url}
+                          alt={s.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Store size={28} className="text-cyan-700" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-bold text-slate-900 truncate">
+                        {s.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                        <MapPin size={12} />{" "}
+                        {s.province_name || selectedProvince.name}
+                      </p>
+                      {s.description ? (
+                        <p className="text-xs text-slate-500 line-clamp-1 mt-1">
+                          {s.description}
+                        </p>
+                      ) : null}
+                    </div>
+                    <ChevronLeft
+                      size={18}
+                      className="rotate-180 text-slate-400 shrink-0"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!storesLoading &&
+            loadError !== "stores" &&
+            filteredStores.length === 0 && (
+              <div className="text-center py-20 opacity-50 px-6">
+                <Store size={48} className="mx-auto mb-4 text-slate-400" />
+                <p className="text-sm">
+                  No hay tiendas en{" "}
+                  <span className="text-cyan-700 font-bold">
+                    {selectedProvince.name}
+                  </span>
+                  .
+                </p>
+                <button
+                  onClick={handleBackToSelector}
+                  className="mt-4 text-xs text-cyan-700 underline"
+                >
+                  Cambiar provincia
+                </button>
+              </div>
+            )}
+
+          {!storesLoading &&
+            loadError !== "stores" &&
+            filteredStores.length > 0 && (
+              <div className="px-4 mt-6 text-center max-w-5xl mx-auto">
+                <p className="text-xs text-slate-500">
+                  {filterText
+                    ? `Mostrando ${filteredStores.length} de ${stores.length} tiendas`
+                    : `Mostrando ${filteredStores.length} tiendas`}
+                </p>
+              </div>
+            )}
+        </>
+      ) : (
+        <>
       {/* Loader de productos */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -431,6 +627,9 @@ const GlobalMarketplace = () => {
             </button>
           )}
         </div>
+      )}
+
+        </>
       )}
 
       {detailProduct && (
