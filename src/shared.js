@@ -135,7 +135,7 @@ export const priceLabel = (p) => {
 };
 
 // "Actualizado hace X": frescura del anuncio para el comprador.
-// El vendedor la refresca con Renovar o con cualquier edición.
+// El vendedor la refresca con cualquier edición (precio, stock...).
 export const timeAgo = (iso) => {
   if (!iso) return "";
   const then = new Date(iso).getTime();
@@ -148,6 +148,54 @@ export const timeAgo = (iso) => {
   const days = Math.floor(hours / 24);
   if (days === 1) return "hace 1 día";
   return `hace ${days} días`;
+};
+
+// --- TASA DE CAMBIO (banner del header) ---
+// La tasa la pone el admin desde su panel (fuente: elTOQUE, mercado
+// informal). Si no hay tasas guardadas o el servidor no responde, el
+// banner no se muestra.
+const RATES_API_URL = "https://mercado-backend-o8vl.onrender.com/api";
+const ELTOQUE_RATES_URL = "https://eltoque.com/tasas-de-cambio-cuba";
+
+export const RatesBanner = () => {
+  const [rates, setRates] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch(`${RATES_API_URL}/public/rates`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && Array.isArray(d.rates) && d.rates.length > 0)
+          setRates(d.rates);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!rates) return null;
+  const updatedAt = rates[0]?.updated_at;
+  return (
+    <div className="bg-slate-900 text-white px-3 py-1.5 text-xs flex items-center justify-center gap-x-2 gap-y-0.5 flex-wrap text-center">
+      <span className="font-bold">💵 Tasa informal</span>
+      {rates.map((r) => (
+        <span key={r.currency} className="font-mono">
+          {r.currency} {formatPrice(r.rate_cup, "CUP")}
+        </span>
+      ))}
+      <span className="text-slate-400">
+        · {updatedAt ? `Actualizado ${timeAgo(updatedAt)} · ` : ""}Fuente:
+        elTOQUE
+      </span>
+      <a
+        href={ELTOQUE_RATES_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="underline text-cyan-300"
+      >
+        Ver en elTOQUE
+      </a>
+    </div>
+  );
 };
 
 // Mensaje que le llega al vendedor por WhatsApp: producto, precio,

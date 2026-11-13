@@ -392,6 +392,70 @@ app.get("/api/public/config", async (req, res, next) => {
   }
 });
 
+// --- TASAS DE CAMBIO (mercado informal, según elTOQUE) ---
+// La tasa la actualiza el admin desde su panel. No se lee directo de
+// elTOQUE: su API oficial exige registro + clave, y el scraping lo
+// desaconseja elTOQUE y lo bloquea Cloudflare. Si la tabla aún no
+// existe, se devuelve lista vacía y el banner no se muestra.
+app.get("/api/public/rates", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT currency, rate_cup, source, updated_at FROM exchange_rates
+       ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 ELSE 3 END`,
+    );
+    res.json({ rates: result.rows });
+  } catch (err) {
+    res.json({ rates: [] });
+  }
+});
+
+app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  const allowed = ["USD", "EUR", "MLC"];
+  const rates = Array.isArray(req.body.rates) ? req.body.rates : [];
+  const clean = [];
+  for (const r of rates) {
+    const currency = String(r.currency || "")
+      .toUpperCase()
+      .trim();
+    const rate = Number(r.rate_cup);
+    if (!allowed.includes(currency)) continue;
+    if (!Number.isFinite(rate) || rate <= 0)
+      return res
+        .status(400)
+        .json({ error: `Tasa inválida para ${currency}` });
+    clean.push({ currency, rate_cup: rate });
+  }
+  if (clean.length === 0)
+    return res.status(400).json({ error: "Sin tasas válidas" });
+  try {
+    for (const r of clean) {
+      await pool.query(
+        `INSERT INTO exchange_rates (currency, rate_cup, source, updated_at)
+         VALUES ($1, $2, 'elTOQUE', now())
+         ON CONFLICT (currency) DO UPDATE SET rate_cup = EXCLUDED.rate_cup, source = 'elTOQUE', updated_at = now()`,
+        [r.currency, r.rate_cup],
+      );
+    }
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: "admin_rates_update",
+      target_type: "admin",
+      target_id: req.user.admin_id,
+      details: { rates: clean },
+    });
+    const result = await pool.query(
+      `SELECT currency, rate_cup, source, updated_at FROM exchange_rates
+       ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 ELSE 3 END`,
+    );
+    res.json({ rates: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Endpoint para obtener la vitrina global (con conteo total y ?q=)
 app.get("/api/public/all-products", async (req, res, next) => {
   try {
@@ -979,29 +1043,6 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
     } finally {
       client.release();
     }
-  } catch (err) {
-    next(err);
-  }
-});
-
-// Renovar un anuncio: marca el producto como vigente hoy sin cambiar
-// nada más (solo toca updated_at). El comprador ve "Actualizado hace X".
-app.post("/api/products/:id/renew", authenticateToken, async (req, res, next) => {
-  const { id } = req.params;
-  try {
-    // Propiedad: el producto debe ser de una tienda del usuario.
-    const check = await pool.query(
-      `SELECT p.store_id FROM products p
-       JOIN stores s ON s.id = p.store_id
-       WHERE p.id = $1 AND s.owner_id = $2`,
-      [id, req.user.id],
-    );
-    if (check.rows.length === 0)
-      return res.status(403).json({ error: "No autorizado" });
-    await pool.query("UPDATE products SET updated_at = now() WHERE id = $1", [
-      id,
-    ]);
-    res.json(await fetchProductWithImages(id));
   } catch (err) {
     next(err);
   }

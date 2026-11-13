@@ -16,6 +16,7 @@ import {
   formatPrice,
   priceLabel,
   timeAgo,
+  RatesBanner,
   orderMessage,
   ProductDetailModal,
   PhotoUploader,
@@ -56,7 +57,6 @@ import {
   //notify,
   Edit,
   Ban,
-  RefreshCw,
   Save,
   CheckCircle,
   Image as ImageIcon,
@@ -455,27 +455,6 @@ const AppProvider = ({ children }) => {
     }
   };
 
-  // Renovar: el anuncio queda vigente hoy sin cambiar nada más.
-  const renewProduct = async (id) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/products/${id}/renew`, {
-        method: "POST",
-        headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error("Error al renovar");
-      const saved = await res.json();
-      setMyProducts((prev) => prev.map((p) => (p.id === id ? saved : p)));
-      notify("Anuncio renovado para hoy");
-      return saved;
-    } catch (err) {
-      notify(err.message, "error");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const deleteProduct = async (id) => {
     if (!window.confirm("¿Eliminar este producto?")) return;
     setLoading(true);
@@ -683,6 +662,27 @@ const AppProvider = ({ children }) => {
     }
   };
 
+  // Tasas de cambio (elTOQUE): el admin las actualiza a mano desde el
+  // panel; el banner público las lee de /api/public/rates.
+  const updateRates = async (rates) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/rates`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ rates }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      notify("Tasas actualizadas");
+      return true;
+    } catch (err) {
+      notify(friendlyError(err), "error");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateAdminPass = async (password) => {
     await fetch(`${API_URL}/admin/password`, {
       method: "PUT",
@@ -720,7 +720,6 @@ const AppProvider = ({ children }) => {
         setVendorPassword,
         saveProduct,
         quickSaveProduct,
-        renewProduct,
         deleteProduct,
         updateStoreSettings,
         loginSuperAdmin,
@@ -732,6 +731,7 @@ const AppProvider = ({ children }) => {
         adminResetStorePass,
         adminUpdateStoreContact,
         updateSuperAdminContact,
+        updateRates,
         getStoreById,
         deleteCode,
         extendCode,
@@ -2078,7 +2078,6 @@ const VendorDashboard = () => {
     myProducts,
     saveProduct,
     quickSaveProduct,
-    renewProduct,
     deleteProduct,
     updateStoreSettings,
     logout,
@@ -2164,12 +2163,6 @@ const VendorDashboard = () => {
     );
     setQuickBusyId(p.id, false);
     if (saved) clearQuickEdit(p.id);
-  };
-
-  const renewOne = async (p) => {
-    setQuickBusyId(p.id, true);
-    await renewProduct(p.id);
-    setQuickBusyId(p.id, false);
   };
 
   const [formS, setFormS] = useState({
@@ -2499,13 +2492,6 @@ const VendorDashboard = () => {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
-                        onClick={() => renewOne(p)}
-                        disabled={busy}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold disabled:opacity-40"
-                      >
-                        <RefreshCw size={13} /> Renovar hoy
-                      </button>
-                      <button
                         onClick={() => toggleOutOfStock(p)}
                         disabled={busy}
                         className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-bold disabled:opacity-40 ${
@@ -2823,6 +2809,7 @@ const SuperAdminPanel = () => {
     adminResetStorePass,
     adminUpdateStoreContact,
     updateSuperAdminContact,
+    updateRates,
     superAdminContact,
   } = useContext(AppContext);
   const navigate = useNavigate();
@@ -2839,6 +2826,55 @@ const SuperAdminPanel = () => {
   const [storePage, setStorePage] = useState(1);
   const [codeQuery, setCodeQuery] = useState("");
   const [codePage, setCodePage] = useState(1);
+  // Tasas de cambio (elTOQUE): se cargan del endpoint público y se
+  // guardan con PUT /api/admin/rates al pulsar Guardar.
+  const [ratesForm, setRatesForm] = useState({
+    USD: "",
+    EUR: "",
+    MLC: "",
+  });
+  const [ratesLoaded, setRatesLoaded] = useState(false);
+  const [ratesUpdatedAt, setRatesUpdatedAt] = useState(null);
+
+  useEffect(() => {
+    if (tab !== "rates" || ratesLoaded) return;
+    fetch(`${API_URL}/public/rates`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !Array.isArray(d.rates)) return;
+        const next = { USD: "", EUR: "", MLC: "" };
+        let latest = null;
+        for (const row of d.rates) {
+          if (row.currency in next)
+            next[row.currency] = String(row.rate_cup ?? "");
+          if (row.updated_at && (!latest || row.updated_at > latest))
+            latest = row.updated_at;
+        }
+        setRatesForm(next);
+        setRatesUpdatedAt(latest);
+        setRatesLoaded(true);
+      })
+      .catch(() => {});
+  }, [tab, ratesLoaded]);
+
+  const saveRates = async (e) => {
+    e.preventDefault();
+    const rates = ["USD", "EUR", "MLC"]
+      .map((currency) => ({
+        currency,
+        rate_cup: Number(String(ratesForm[currency]).replace(",", ".")),
+      }))
+      .filter((r) => Number.isFinite(r.rate_cup) && r.rate_cup > 0);
+    if (rates.length === 0) {
+      notify("Pon al menos una tasa mayor que 0.", "error");
+      return;
+    }
+    const ok = await updateRates(rates);
+    if (ok) {
+      setRatesUpdatedAt(new Date().toISOString());
+      setRatesLoaded(true);
+    }
+  };
 
   useEffect(() => {
     setAdminContact(superAdminContact);
@@ -2954,7 +2990,7 @@ const SuperAdminPanel = () => {
         </div>
 
         <div className="flex gap-2">
-          {["stores", "codes", "sec"].map((t) => (
+          {["stores", "codes", "rates", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -2964,7 +3000,9 @@ const SuperAdminPanel = () => {
                 ? "Tiendas"
                 : t === "codes"
                   ? "Licencias"
-                  : "Seguridad"}
+                  : t === "rates"
+                    ? "Tasas"
+                    : "Seguridad"}
             </button>
           ))}
         </div>
@@ -3251,6 +3289,58 @@ const SuperAdminPanel = () => {
           </div>
         )}
 
+        {tab === "rates" && (
+          <Card className="p-5">
+            <h3 className="text-slate-900 font-bold mb-1 uppercase text-sm">
+              Tasa de cambio informal
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Es la tasa que ven todos en el banner de arriba, con fuente
+              elTOQUE. Cópiala de{" "}
+              <a
+                href="https://eltoque.com/tasas-de-cambio-cuba"
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-700 underline"
+              >
+                eltoque.com/tasas-de-cambio-cuba
+              </a>{" "}
+              y actualízala cada mañana. Si la dejas vacía, esa moneda no
+              se muestra.
+              {ratesUpdatedAt && (
+                <> Última actualización: {timeAgo(ratesUpdatedAt)}.</>
+              )}
+            </p>
+            <form onSubmit={saveRates} className="space-y-3">
+              {["USD", "EUR", "MLC"].map((currency) => (
+                <label key={currency} className="block">
+                  <span className="block text-[11px] font-bold uppercase text-slate-400">
+                    1 {currency} en CUP
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    placeholder="Ej. 910"
+                    value={ratesForm[currency]}
+                    onChange={(e) =>
+                      setRatesForm((prev) => ({
+                        ...prev,
+                        [currency]: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 outline-none focus:border-cyan-500"
+                  />
+                </label>
+              ))}
+              <Button type="submit" className="w-full">
+                Guardar tasas
+              </Button>
+            </form>
+          </Card>
+        )}
+
         {tab === "sec" && (
           <div className="space-y-4">
             <Card className="p-5">
@@ -3432,7 +3522,9 @@ const NotFoundPage = () => {
 // --- CONFIGURACIÓN DE RUTAS ---
 const AppRoutes = () => {
   return (
-    <Routes>
+    <>
+      <RatesBanner />
+      <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthScreen mode="login" />} />
       <Route path="/register" element={<AuthScreen mode="register" />} />
@@ -3443,7 +3535,8 @@ const AppRoutes = () => {
       <Route path="/:slug" element={<StoreFrontend />} />
       <Route path="/explorar" element={<GlobalMarketplace />} />
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+      </Routes>
+    </>
   );
 };
 
