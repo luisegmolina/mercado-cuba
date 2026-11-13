@@ -93,6 +93,30 @@ const FALLBACK_ADMIN_CONTACT = "18063168743";
 
 const APP_NAME = "Mercado Cuba";
 
+// Copiar texto al portapapeles. navigator.clipboard falla fuera de HTTPS,
+// sin permiso o en algunos WebView (APK): en ese caso se usa el método
+// clásico con un textarea temporal. Devuelve true si se copió.
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+};
+
 /** * --- UTILIDADES DE PROCESAMIENTO ---
  * (parseImages y SafeImage viven en ./shared.js y se importan arriba)
  */
@@ -3109,6 +3133,21 @@ const SuperAdminPanel = () => {
                     </p>
                   )}
                   <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={async () => {
+                        const ok = await copyToClipboard(c.code);
+                        notify(
+                          ok
+                            ? "Código copiado"
+                            : "No se pudo copiar el código",
+                          ok ? "success" : "error",
+                        );
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 px-3 py-1.5 rounded-lg hover:bg-cyan-100"
+                      title="Copiar código de licencia"
+                    >
+                      <Copy size={14} /> Copiar
+                    </button>
                     {c.status === "used" && (
                       <>
                         <button
