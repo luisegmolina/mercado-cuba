@@ -936,7 +936,8 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
          name = COALESCE($1, name), description = COALESCE($2, description),
          price_cup = COALESCE($3, price_cup), price_usd = COALESCE($4, price_usd),
          category = COALESCE($5, category), stock = COALESCE($6, stock),
-         is_visible = COALESCE($7, is_visible)
+         is_visible = COALESCE($7, is_visible),
+         updated_at = now()
          WHERE id = $8`,
         [
           name !== undefined && name !== null ? String(name).trim() : null,
@@ -978,6 +979,29 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
     } finally {
       client.release();
     }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Renovar un anuncio: marca el producto como vigente hoy sin cambiar
+// nada más (solo toca updated_at). El comprador ve "Actualizado hace X".
+app.post("/api/products/:id/renew", authenticateToken, async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    // Propiedad: el producto debe ser de una tienda del usuario.
+    const check = await pool.query(
+      `SELECT p.store_id FROM products p
+       JOIN stores s ON s.id = p.store_id
+       WHERE p.id = $1 AND s.owner_id = $2`,
+      [id, req.user.id],
+    );
+    if (check.rows.length === 0)
+      return res.status(403).json({ error: "No autorizado" });
+    await pool.query("UPDATE products SET updated_at = now() WHERE id = $1", [
+      id,
+    ]);
+    res.json(await fetchProductWithImages(id));
   } catch (err) {
     next(err);
   }

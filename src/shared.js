@@ -134,6 +134,22 @@ export const priceLabel = (p) => {
   return parts.length > 0 ? parts.join(" · ") : "Precio a consultar";
 };
 
+// "Actualizado hace X": frescura del anuncio para el comprador.
+// El vendedor la refresca con Renovar o con cualquier edición.
+export const timeAgo = (iso) => {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (mins < 1) return "ahora mismo";
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "hace 1 día";
+  return `hace ${days} días`;
+};
+
 // Mensaje que le llega al vendedor por WhatsApp: producto, precio,
 // tienda, provincia y enlace. Así sabe de qué le hablan.
 export const orderMessage = ({ name, prices, storeName, province, slug }) =>
@@ -449,6 +465,11 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
             <p className="text-lg font-black bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
               {priceLabel(product)}
             </p>
+            {product.updated_at && (
+              <p className="text-xs text-slate-400">
+                Actualizado {timeAgo(product.updated_at)}
+              </p>
+            )}
             {product.category && (
               <p className="text-xs text-slate-500">
                 Categoría: {product.category}

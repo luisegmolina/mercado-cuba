@@ -15,6 +15,7 @@ import {
   waLink,
   formatPrice,
   priceLabel,
+  timeAgo,
   orderMessage,
   ProductDetailModal,
   PhotoUploader,
@@ -55,6 +56,8 @@ import {
   //notify,
   Edit,
   Ban,
+  RefreshCw,
+  Save,
   CheckCircle,
   Image as ImageIcon,
   ArrowRight,
@@ -425,6 +428,54 @@ const AppProvider = ({ children }) => {
     }
   };
 
+  // Edición rápida: solo precio CUP/USD y stock, sin abrir el modal.
+  // El PUT parcial del backend conserva lo demás y refresca updated_at.
+  const quickSaveProduct = async (
+    id,
+    patch,
+    okMessage = "Precio actualizado",
+  ) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/products/${id}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      const saved = await res.json();
+      setMyProducts((prev) => prev.map((p) => (p.id === id ? saved : p)));
+      notify(okMessage);
+      return saved;
+    } catch (err) {
+      notify(err.message, "error");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Renovar: el anuncio queda vigente hoy sin cambiar nada más.
+  const renewProduct = async (id) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/products/${id}/renew`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error("Error al renovar");
+      const saved = await res.json();
+      setMyProducts((prev) => prev.map((p) => (p.id === id ? saved : p)));
+      notify("Anuncio renovado para hoy");
+      return saved;
+    } catch (err) {
+      notify(err.message, "error");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteProduct = async (id) => {
     if (!window.confirm("¿Eliminar este producto?")) return;
     setLoading(true);
@@ -668,6 +719,8 @@ const AppProvider = ({ children }) => {
         needsPassword,
         setVendorPassword,
         saveProduct,
+        quickSaveProduct,
+        renewProduct,
         deleteProduct,
         updateStoreSettings,
         loginSuperAdmin,
@@ -2024,6 +2077,8 @@ const VendorDashboard = () => {
     myStore,
     myProducts,
     saveProduct,
+    quickSaveProduct,
+    renewProduct,
     deleteProduct,
     updateStoreSettings,
     logout,
@@ -2038,6 +2093,84 @@ const VendorDashboard = () => {
   // Buscador y paginación de mis productos (10 por página).
   const [prodQuery, setProdQuery] = useState("");
   const [prodPage, setProdPage] = useState(1);
+  // Edición rápida por producto: { [id]: { priceCup, priceUsd, stock } }.
+  // Solo se guarda lo que el vendedor cambió; al guardar se limpia.
+  const [quickEdits, setQuickEdits] = useState({});
+  const [quickBusy, setQuickBusy] = useState({});
+
+  const quickValues = (p) => ({
+    priceCup: quickEdits[p.id]?.priceCup ?? p.price_cup ?? 0,
+    priceUsd: quickEdits[p.id]?.priceUsd ?? p.price_usd ?? 0,
+    stock: quickEdits[p.id]?.stock ?? p.stock ?? 0,
+  });
+  const isQuickDirty = (p) => {
+    const q = quickEdits[p.id];
+    if (!q) return false;
+    return (
+      Number(q.priceCup) !== Number(p.price_cup ?? 0) ||
+      Number(q.priceUsd) !== Number(p.price_usd ?? 0) ||
+      Number(q.stock) !== Number(p.stock ?? 0)
+    );
+  };
+  const clearQuickEdit = (id) =>
+    setQuickEdits((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  const setQuickBusyId = (id, busy) =>
+    setQuickBusy((prev) => ({ ...prev, [id]: busy }));
+
+  const saveQuick = async (p) => {
+    const q = quickValues(p);
+    const cup = Number(q.priceCup) || 0;
+    const usd = Number(q.priceUsd) || 0;
+    if (cup <= 0 && usd <= 0) {
+      notify("Pon al menos un precio (CUP o USD).", "error");
+      return;
+    }
+    // Misma cordura que en el formulario completo: la tasa informal
+    // ronda ~400 CUP por USD; fuera de 100–1000 casi seguro hay un error.
+    if (cup > 0 && usd > 0) {
+      const ratio = cup / usd;
+      if (
+        (ratio < 100 || ratio > 1000) &&
+        !window.confirm(
+          `Revisa los precios: ${cup} CUP por ${usd} USD suena raro (la tasa informal ronda 400 CUP por USD). ¿Guardar así de todas formas?`,
+        )
+      ) {
+        return;
+      }
+    }
+    setQuickBusyId(p.id, true);
+    const saved = await quickSaveProduct(p.id, {
+      priceCup: cup,
+      priceUsd: usd,
+      stock: Math.max(0, Math.floor(Number(q.stock) || 0)),
+    });
+    setQuickBusyId(p.id, false);
+    if (saved) clearQuickEdit(p.id);
+  };
+
+  // Agotado = stock 0; Disponible lo vuelve a 1 (luego se ajusta la
+  // cantidad exacta en el campo de stock si hace falta).
+  const toggleOutOfStock = async (p) => {
+    const out = Number(p.stock) > 0;
+    setQuickBusyId(p.id, true);
+    const saved = await quickSaveProduct(
+      p.id,
+      { stock: out ? 0 : 1 },
+      out ? "Marcado como agotado" : "Marcado como disponible",
+    );
+    setQuickBusyId(p.id, false);
+    if (saved) clearQuickEdit(p.id);
+  };
+
+  const renewOne = async (p) => {
+    setQuickBusyId(p.id, true);
+    await renewProduct(p.id);
+    setQuickBusyId(p.id, false);
+  };
 
   const [formS, setFormS] = useState({
     name: myStore?.name || "",
@@ -2235,49 +2368,165 @@ const VendorDashboard = () => {
               {filteredProducts.length > 0 &&
                 ` · mostrando ${(prodPageSafe - 1) * PRODUCTS_PER_PAGE + 1}–${Math.min(prodPageSafe * PRODUCTS_PER_PAGE, filteredProducts.length)}`}
             </p>
-            {prodPageProducts.map((p) => (
-              <div
-                key={p.id}
-                className={`bg-white p-3 rounded-2xl border border-slate-200 flex gap-3 items-center ${!p.is_visible && "opacity-50"}`}
-              >
-                <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shrink-0 border border-slate-200">
-                  <SafeImage
-                    src={parseImages(p.images ?? p.image_url)[0]}
-                    className="w-full h-full object-cover"
-                  />
+            {prodPageProducts.map((p) => {
+              const q = quickValues(p);
+              const dirty = isQuickDirty(p);
+              const busy = !!quickBusy[p.id];
+              const out = Number(p.stock) === 0;
+              return (
+                <div
+                  key={p.id}
+                  className={`bg-white p-3 rounded-2xl border border-slate-200 ${!p.is_visible && "opacity-50"}`}
+                >
+                  <div className="flex gap-3 items-center">
+                    <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shrink-0 border border-slate-200">
+                      <SafeImage
+                        src={parseImages(p.images ?? p.image_url)[0]}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-800 text-sm truncate">
+                        {p.name}
+                      </h4>
+                      <p className="text-xs text-emerald-600 font-mono mt-1">
+                        {priceLabel(p)}
+                      </p>
+                      {p.updated_at && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Actualizado {timeAgo(p.updated_at)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => openModal(p)}
+                        className="bg-slate-100 p-2 rounded-lg text-cyan-700"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          saveProduct(
+                            { ...p, is_visible: !p.is_visible },
+                            true,
+                          )
+                        }
+                        className="bg-slate-100 p-2 rounded-lg text-slate-500"
+                      >
+                        {p.is_visible ? (
+                          <Eye size={16} />
+                        ) : (
+                          <EyeOff size={16} />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => deleteProduct(p.id)}
+                        className="bg-slate-100 p-2 rounded-lg text-rose-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  {/* --- Edición rápida: precio y stock sin abrir el formulario --- */}
+                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                    <div className="flex items-end gap-2">
+                      <label className="flex-1 min-w-0">
+                        <span className="block text-[10px] font-bold uppercase text-slate-400">
+                          CUP
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={q.priceCup}
+                          disabled={busy}
+                          onChange={(e) =>
+                            setQuickEdits((prev) => ({
+                              ...prev,
+                              [p.id]: { ...q, priceCup: e.target.value },
+                            }))
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-900 outline-none focus:border-cyan-500"
+                        />
+                      </label>
+                      <label className="flex-1 min-w-0">
+                        <span className="block text-[10px] font-bold uppercase text-slate-400">
+                          USD
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={q.priceUsd}
+                          disabled={busy}
+                          onChange={(e) =>
+                            setQuickEdits((prev) => ({
+                              ...prev,
+                              [p.id]: { ...q, priceUsd: e.target.value },
+                            }))
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-900 outline-none focus:border-cyan-500"
+                        />
+                      </label>
+                      <label className="w-16 shrink-0">
+                        <span className="block text-[10px] font-bold uppercase text-slate-400">
+                          Stock
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          inputMode="numeric"
+                          value={q.stock}
+                          disabled={busy}
+                          onChange={(e) =>
+                            setQuickEdits((prev) => ({
+                              ...prev,
+                              [p.id]: { ...q, stock: e.target.value },
+                            }))
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-900 outline-none focus:border-cyan-500"
+                        />
+                      </label>
+                      <button
+                        onClick={() => saveQuick(p)}
+                        disabled={!dirty || busy}
+                        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl bg-cyan-600 text-white text-xs font-bold disabled:opacity-40"
+                      >
+                        <Save size={14} /> Guardar
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => renewOne(p)}
+                        disabled={busy}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold disabled:opacity-40"
+                      >
+                        <RefreshCw size={13} /> Renovar hoy
+                      </button>
+                      <button
+                        onClick={() => toggleOutOfStock(p)}
+                        disabled={busy}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-bold disabled:opacity-40 ${
+                          out
+                            ? "bg-emerald-600 border-emerald-600 text-white"
+                            : "bg-rose-50 border-rose-200 text-rose-600"
+                        }`}
+                      >
+                        <Ban size={13} />
+                        {out ? "Volver a disponible" : "Marcar agotado"}
+                      </button>
+                      {out && (
+                        <span className="inline-flex items-center text-[11px] font-bold px-2 py-1 rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                          Agotado
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-slate-800 text-sm truncate">
-                    {p.name}
-                  </h4>
-                  <p className="text-xs text-emerald-600 font-mono mt-1">
-                    {priceLabel(p)}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => openModal(p)}
-                    className="bg-slate-100 p-2 rounded-lg text-cyan-700"
-                  >
-                    <Edit size={16} />
-                  </button>
-                  <button
-                    onClick={() =>
-                      saveProduct({ ...p, is_visible: !p.is_visible }, true)
-                    }
-                    className="bg-slate-100 p-2 rounded-lg text-slate-500"
-                  >
-                    {p.is_visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <button
-                    onClick={() => deleteProduct(p.id)}
-                    className="bg-slate-100 p-2 rounded-lg text-rose-600"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {filteredProducts.length === 0 && (
               <p className="text-sm text-slate-500 text-center py-8">
                 {prodQuery
