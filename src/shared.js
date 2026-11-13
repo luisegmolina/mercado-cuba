@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X,
@@ -8,12 +8,71 @@ import {
   ChevronRight,
   MapPin,
   Image as ImageIcon,
+  Camera,
+  ImagePlus,
+  Loader2,
 } from "lucide-react";
 
 // Foto de Cuba para el hero y como fondo por defecto de las tiendas:
 // La Habana desde el Malecón (Wikimedia Commons, licencia libre).
 export const CUBA_HERO =
   "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Havana_view.jpg/960px-Havana_view.jpg";
+
+// --- CLOUDINARY (subida de fotos desde el celular / cámara) ---
+// El vendedor sube la foto desde el teléfono y Cloudinary devuelve el
+// enlace, que es lo que se guarda en la base (product_images). La subida
+// va directa del teléfono a Cloudinary: no pasa por el backend.
+// VALORES PROVISIONALES: hay que crear la cuenta gratuita de Cloudinary
+// y rellenar el cloud name y el upload preset (unsigned, carpeta
+// "mercado-cuba") antes de probar la subida. Mientras sigan como
+// "RELLENAR_...", uploadImage avisa con un mensaje claro en vez de fallar.
+export const CLOUDINARY_CLOUD_NAME = "fzeuvndq";
+export const CLOUDINARY_UPLOAD_PRESET = "mercado-cuba";
+export const CLOUDINARY_FOLDER = "mercado-cuba";
+export const MAX_PHOTO_SIZE_MB = 5;
+
+export const isCloudinaryConfigured = () =>
+  !!CLOUDINARY_CLOUD_NAME &&
+  !CLOUDINARY_CLOUD_NAME.startsWith("RELLENAR") &&
+  !!CLOUDINARY_UPLOAD_PRESET &&
+  !CLOUDINARY_UPLOAD_PRESET.startsWith("RELLENAR");
+
+// Sube una foto a Cloudinary y devuelve su enlace seguro (https).
+export const uploadImage = async (file) => {
+  if (!file) throw new Error("No elegiste ninguna foto.");
+  if (!file.type || !file.type.startsWith("image/"))
+    throw new Error("Ese archivo no es una foto. Elige una imagen.");
+  if (file.size > MAX_PHOTO_SIZE_MB * 1024 * 1024)
+    throw new Error(
+      `La foto pesa más de ${MAX_PHOTO_SIZE_MB} MB. Elige una foto más liviana.`,
+    );
+  if (!isCloudinaryConfigured())
+    throw new Error(
+      "La subida de fotos aún no está configurada. Avísale al administrador.",
+    );
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  form.append("folder", CLOUDINARY_FOLDER);
+  let res;
+  try {
+    res = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+      { method: "POST", body: form },
+    );
+  } catch (e) {
+    throw new Error(
+      "No hay conexión para subir la foto. Revisa el internet e inténtalo de nuevo.",
+    );
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.secure_url)
+    throw new Error(
+      (data && data.error && data.error.message) ||
+        "No se pudo subir la foto. Inténtalo de nuevo.",
+    );
+  return data.secure_url;
+};
 
 // --- TELÉFONOS ---
 // Normaliza un número a dígitos con código de país:
@@ -134,6 +193,141 @@ export const SafeImage = ({ src, className, fallbackIcon: Icon = ImageIcon }) =>
       onError={() => setError(true)}
       loading="lazy"
     />
+  );
+};
+
+// --- SUBIDA DE FOTOS (celular / cámara) ---
+// Dos botones grandes, pensados para quien sabe lo menos posible:
+// "Tomar foto" abre la cámara del teléfono; "Galería" abre las fotos
+// guardadas (permite elegir varias). Cada foto se sube a Cloudinary al
+// elegirla y se muestra la vista previa. El enlace resultante es lo que
+// se guarda en el producto o en el logo.
+// Nota: en los navegadores del móvil `capture` se ignora cuando el input
+// es `multiple`, por eso la cámara y la galería son dos botones separados
+// en vez de un solo input con capture+multiple.
+export const PhotoUploader = ({
+  images = [],
+  onChange,
+  max = 3,
+  single = false,
+  label = "Fotos",
+}) => {
+  const [uploading, setUploading] = useState(0);
+  const [error, setError] = useState("");
+  const cameraRef = useRef(null);
+  const galleryRef = useRef(null);
+  const limit = single ? 1 : max;
+
+  const handleFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const room = limit - images.length;
+    if (room <= 0) {
+      setError(
+        single
+          ? "Ya tienes una foto. Quítala primero si quieres cambiarla."
+          : `Máximo ${limit} fotos por producto.`,
+      );
+      return;
+    }
+    const toUpload = files.slice(0, room);
+    if (files.length > room)
+      setError(`Solo se pueden añadir ${room} más (máx. ${limit}).`);
+    else setError("");
+    setUploading((n) => n + toUpload.length);
+    const urls = [];
+    for (const f of toUpload) {
+      try {
+        urls.push(await uploadImage(f));
+      } catch (e) {
+        setError(e.message || "No se pudo subir la foto. Inténtalo de nuevo.");
+      }
+    }
+    setUploading((n) => n - toUpload.length);
+    if (urls.length) onChange([...images, ...urls]);
+  };
+
+  const removeAt = (i) => {
+    setError("");
+    onChange(images.filter((_, idx) => idx !== i));
+  };
+
+  const disabled = uploading > 0 || images.length >= limit;
+
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
+        {label} (máx. {limit})
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => cameraRef.current?.click()}
+          className="flex-1 bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-cyan-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <Camera size={18} /> Tomar foto
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => galleryRef.current?.click()}
+          className="flex-1 bg-sky-100 border border-slate-200 text-slate-900 py-3 rounded-xl text-sm font-bold hover:bg-sky-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          <ImagePlus size={18} /> Galería
+        </button>
+      </div>
+      {/* La cámara abre la cámara; la galería abre las fotos guardadas. */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        multiple={!single}
+        className="hidden"
+        onChange={(e) => {
+          handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      {uploading > 0 && (
+        <p className="text-xs text-cyan-700 font-bold mt-2 flex items-center gap-1">
+          <Loader2 size={14} className="animate-spin" /> Subiendo foto
+          {uploading > 1 ? "s" : ""}...
+        </p>
+      )}
+      {error && <p className="text-xs text-rose-600 font-bold mt-2">{error}</p>}
+      {images.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          {images.map((url, i) => (
+            <div
+              key={i}
+              className="aspect-square bg-sky-50 rounded-xl overflow-hidden relative"
+            >
+              <SafeImage src={url} className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removeAt(i)}
+                className="absolute top-1 right-1 bg-rose-600 rounded-full p-1 text-white"
+                aria-label="Quitar foto"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -17,6 +17,7 @@ import {
   priceLabel,
   orderMessage,
   ProductDetailModal,
+  PhotoUploader,
   CUBA_HERO,
   firstProductImage,
 } from "./shared";
@@ -2019,8 +2020,9 @@ const VendorDashboard = () => {
     is_public: myStore?.is_public ?? true,
     province_id: myStore?.province_id || "",
   });
-  // Enlace de foto nueva para el producto (las fotos son URLs, ya no
-  // se suben archivos: el esquema nuevo rechaza base64).
+  // Enlace de foto nueva (opción secundaria: el flujo principal es
+  // subir desde el celular/cámara con PhotoUploader; el enlace solo
+  // es para quien ya tiene la foto publicada en internet).
   const [photoUrl, setPhotoUrl] = useState("");
 
   // Sincroniza el formulario de Ajustes cuando la tienda llega
@@ -2092,13 +2094,14 @@ const VendorDashboard = () => {
     prodPageSafe * PRODUCTS_PER_PAGE,
   );
 
-  // Añade una foto por su enlace (máx. 3 por producto). Solo URLs
-  // http(s): el backend rechaza base64 (data:) con error 400.
+  // Añade una foto por su enlace (opción secundaria; máx. 3 por
+  // producto). Solo URLs https: el backend rechaza base64 (data:)
+  // con error 400.
   const addPhotoUrl = () => {
     const url = (photoUrl || "").trim();
     if (!url) return;
-    if (!/^https?:\/\//i.test(url) || /^data:/i.test(url)) {
-      notify("Pega un enlace http(s) válido", "error");
+    if (!/^https:\/\//i.test(url) || /^data:/i.test(url)) {
+      notify("Pega un enlace https válido", "error");
       return;
     }
     if ((formP.images || []).length >= 3) {
@@ -2284,14 +2287,19 @@ const VendorDashboard = () => {
                 }
               />
             </div>
-            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200">
-              <SafeImage
-                src={formS.logoUrl}
-                className="w-16 h-16 rounded-full overflow-hidden"
+            <div className="p-4 bg-white rounded-xl border border-slate-200">
+              <PhotoUploader
+                images={formS.logoUrl ? [formS.logoUrl] : []}
+                onChange={(imgs) =>
+                  setFormS((prev) => ({ ...prev, logoUrl: imgs[0] || "" }))
+                }
+                max={1}
+                single
+                label="Logo de la tienda"
               />
-              <div className="flex-1 min-w-0">
-                <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
-                  URL del logo (https://...)
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <label className="block text-[11px] text-slate-500 mb-1.5">
+                  ¿Prefieres pegar un enlace? (opcional)
                 </label>
                 <input
                   type="url"
@@ -2443,60 +2451,41 @@ const VendorDashboard = () => {
               </div>
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-200">
-              <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
-                Fotos (enlaces, máx. 3)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="https://... (enlace de la foto)"
-                  value={photoUrl}
-                  onChange={(e) => setPhotoUrl(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addPhotoUrl();
-                    }
-                  }}
-                  className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500 placeholder:text-slate-500"
-                />
-                <button
-                  type="button"
-                  onClick={addPhotoUrl}
-                  className="bg-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shrink-0"
-                >
-                  Añadir
-                </button>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                Pega el enlace de una foto ya publicada en internet. La
-                subida desde la cámara ya no funciona: el sistema nuevo
-                solo acepta enlaces.
-              </p>
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                {formP.images?.map((url, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square bg-sky-50 rounded-xl overflow-hidden relative"
-                  >
-                    <SafeImage
-                      src={url}
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setFormP((p) => ({
-                          ...p,
-                          images: p.images.filter((_, idx) => idx !== i),
-                        }))
+              <PhotoUploader
+                images={formP.images || []}
+                onChange={(imgs) =>
+                  setFormP((prev) => ({ ...prev, images: imgs }))
+                }
+                max={3}
+                label="Fotos"
+              />
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <p className="text-[11px] text-slate-500 mb-2">
+                  ¿Prefieres pegar un enlace? También puedes añadir una
+                  foto por su enlace de internet.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://... (enlace de la foto)"
+                    value={photoUrl}
+                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addPhotoUrl();
                       }
-                      className="absolute top-1 right-1 bg-rose-600 rounded-full p-1 text-white"
-                    >
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
+                    }}
+                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500 placeholder:text-slate-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={addPhotoUrl}
+                    className="bg-cyan-600 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase shrink-0"
+                  >
+                    Añadir
+                  </button>
+                </div>
               </div>
             </div>
             <Button type="submit" className="w-full py-4 text-lg">

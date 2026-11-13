@@ -2,7 +2,9 @@
 // Cambios frente al esquema viejo:
 //  - Auth de vendedor contra `users` (la cuenta ya no ES la tienda);
 //    el JWT lleva user_id (v:2) y las rutas verifican owner_id.
-//  - Fotos en `product_images` (solo URLs http(s); data: rechazado con 400).
+//  - Fotos en `product_images` (solo URLs https; data: rechazado con 400).
+//    La subida va directa del celular a Cloudinary y el backend solo
+//    guarda el enlace que devuelve.
 //  - Licencias con vigencia: `licenses` + `store_licenses` + `license_events`.
 //  - Admin en la tabla `admins` (password_changed_at alimenta el recordatorio).
 //  - Acciones del admin quedan en `audit_log`.
@@ -90,10 +92,12 @@ const isValidPhone = (normalized) =>
   (normalized.startsWith("53") && normalized.length === 10) ||
   (normalized.startsWith("1") && normalized.length === 11);
 
-// URL http(s) válida (nunca data: — el esquema nuevo lo prohíbe con CHECK).
-const isHttpUrl = (u) =>
+// URL https válida (nunca data: — el esquema nuevo lo prohíbe con CHECK).
+// Las fotos subidas desde el celular llegan como res.cloudinary.com;
+// se acepta cualquier https por ahora, solo se valida el formato.
+const isHttpsUrl = (u) =>
   typeof u === "string" &&
-  /^https?:\/\//i.test(u.trim()) &&
+  /^https:\/\//i.test(u.trim()) &&
   !/^data:/i.test(u.trim());
 
 // Columnas seguras de un usuario (nunca devolver password_hash)
@@ -760,7 +764,7 @@ const validateProduct = (body, isUpdate) => {
   return null;
 };
 
-// Las fotos son un array de URLs http(s). data: (base64) se rechaza:
+// Las fotos son un array de URLs https. data: (base64) se rechaza:
 // el esquema nuevo lo prohíbe con CHECK en product_images.
 const validateImages = (images) => {
   if (images === undefined || images === null) return null;
@@ -768,8 +772,8 @@ const validateImages = (images) => {
     return "Las fotos deben ser una lista de enlaces (URLs)";
   if (images.length > 5) return "Máximo 5 fotos por producto";
   for (const u of images) {
-    if (!isHttpUrl(u))
-      return "Las fotos deben ser enlaces http(s); no se aceptan imágenes en base64 (data:)";
+    if (!isHttpsUrl(u))
+      return "Las fotos deben ser enlaces https; no se aceptan imágenes en base64 (data:)";
   }
   return null;
 };
@@ -968,10 +972,10 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
     logoUrl !== undefined &&
     logoUrl !== null &&
     String(logoUrl).trim() !== "" &&
-    !isHttpUrl(logoUrl)
+    !isHttpsUrl(logoUrl)
   )
     return res.status(400).json({
-      error: "El logo debe ser un enlace http(s); no se aceptan imágenes en base64",
+      error: "El logo debe ser un enlace https; no se aceptan imágenes en base64",
     });
   if (
     province_id !== undefined &&
