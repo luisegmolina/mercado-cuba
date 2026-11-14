@@ -44,6 +44,7 @@ import {
   Trash2,
   LogOut,
   User,
+  UserPlus,
   MessageCircle,
   X,
   Copy,
@@ -1255,6 +1256,12 @@ const LandingPage = () => {
               className="sm:col-span-2 w-full bg-white text-sky-800 py-4 rounded-2xl text-base font-extrabold hover:bg-sky-50 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
             >
               <Grid size={20} /> Explorar Todo el Mercado
+            </button>
+            <button
+              onClick={() => navigate("/register")}
+              className="sm:col-span-2 w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl text-base font-extrabold hover:from-amber-400 hover:to-orange-400 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
+            >
+              <UserPlus size={20} /> Crear Mi Tienda
             </button>
             <button
               onClick={() => navigate("/login")}
