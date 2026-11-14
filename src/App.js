@@ -212,6 +212,7 @@ const AppProvider = ({ children }) => {
   const [myStore, setMyStore] = useState(null);
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [superAdminContact, setSuperAdminContact] = useState(
     FALLBACK_ADMIN_CONTACT
   );
@@ -730,13 +731,65 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteStore = async (id) => {
-    if (!window.confirm("¿ELIMINAR TIENDA?")) return;
+    if (
+      !window.confirm(
+        "¿ELIMINAR TIENDA? También se eliminará su usuario dueño si no tiene otra tienda.",
+      )
+    )
+      return;
     await fetch(`${API_URL}/admin/store/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
     });
     fetchAdminData();
     notify("Tienda eliminada");
+  };
+
+  // Usuarios (panel Super Admin): lista, borrado y reset de clave.
+  const fetchAdminUsers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/users`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminUsers(data.users || []);
+      }
+    } catch (e) {}
+  };
+
+  const deleteAdminUser = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      const data = await res.json();
+      notify(
+        data.stores_deleted > 0
+          ? `Usuario eliminado (${data.stores_deleted} tienda(s) borrada(s))`
+          : "Usuario eliminado",
+      );
+      fetchAdminUsers();
+      fetchAdminData();
+    } catch (e) {
+      notify(e.message || "Error al eliminar el usuario", "error");
+    }
+  };
+
+  const adminResetUserPass = async (userId, newPassword) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${userId}/password`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ newPassword }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      notify("Clave de usuario restablecida");
+    } catch (e) {
+      notify(e.message || "Error", "error");
+    }
   };
 
   const adminUpdateStoreContact = async (storeId, whatsapp) => {
@@ -857,6 +910,10 @@ const AppProvider = ({ children }) => {
         loginSuperAdmin,
         fetchAdminData,
         fetchAudit,
+        adminUsers,
+        fetchAdminUsers,
+        deleteAdminUser,
+        adminResetUserPass,
         generateCode,
         toggleStore,
         deleteStore,
@@ -3028,6 +3085,7 @@ const AUDIT_ACTION_LABELS = {
   store_suspend: "Tienda suspendida",
   store_unsuspend: "Tienda reactivada",
   store_delete: "Tienda eliminada",
+  user_delete: "Usuario eliminado",
   user_password_reset: "Clave de vendedor reseteada",
   store_contact_change: "Contacto de tienda cambiado",
   admin_password_change: "Clave del admin cambiada",
@@ -3064,6 +3122,10 @@ const SuperAdminPanel = () => {
     updateSuperAdminContact,
     updateRates,
     fetchAudit,
+    adminUsers,
+    fetchAdminUsers,
+    deleteAdminUser,
+    adminResetUserPass,
     provinces,
     createProvince,
     deleteProvince,
@@ -3077,6 +3139,14 @@ const SuperAdminPanel = () => {
   const [currentPass, setCurrentPass] = useState("");
   const [selStore, setSelStore] = useState(null);
   const [resetP, setResetP] = useState("");
+  const [confirmDeleteUserId, setConfirmDeleteUserId] = useState(null);
+  const [userPassDraft, setUserPassDraft] = useState({});
+
+  // Al abrir la pestaña Usuarios, carga la lista desde el backend.
+  useEffect(() => {
+    if (tab === "users") fetchAdminUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [grantLicenseId, setGrantLicenseId] = useState("");
   const [adminContact, setAdminContact] = useState(superAdminContact);
@@ -3343,7 +3413,7 @@ const SuperAdminPanel = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {["stores", "codes", "rates", "loc", "audit", "sec"].map((t) => (
+          {["stores", "users", "codes", "rates", "loc", "audit", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -3351,7 +3421,9 @@ const SuperAdminPanel = () => {
             >
               {t === "stores"
                 ? "Tiendas"
-                : t === "codes"
+                : t === "users"
+                  ? "Usuarios"
+                  : t === "codes"
                   ? "Licencias"
                   : t === "rates"
                     ? "Tasas"
@@ -3657,6 +3729,92 @@ const SuperAdminPanel = () => {
                   Siguiente <ChevronRight size={14} />
                 </button>
               </div>
+            )}
+          </div>
+        )}
+
+        {tab === "users" && (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500">
+              {adminUsers.length} usuario(s). Borrar un usuario borra también
+              sus tiendas. La clave se cambia aquí mismo, mínimo 10 caracteres.
+            </p>
+            {adminUsers.map((u) => (
+              <Card key={u.id} className="p-4 space-y-2">
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <div className="font-bold text-slate-900">
+                      {u.owner_name}
+                    </div>
+                    <div className="text-xs text-slate-500 font-mono">
+                      {u.whatsapp}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {u.store_count > 0
+                        ? `Tienda: ${u.store_name}${u.store_count > 1 ? ` (+${u.store_count - 1} más)` : ""}`
+                        : "Sin tienda"}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirmDeleteUserId === u.id) {
+                        setConfirmDeleteUserId(null);
+                        deleteAdminUser(u.id);
+                      } else {
+                        setConfirmDeleteUserId(u.id);
+                        notify(
+                          "Toca Confirmar para borrar este usuario y sus tiendas",
+                          "warning",
+                        );
+                      }
+                    }}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                      confirmDeleteUserId === u.id
+                        ? "bg-amber-500 text-white"
+                        : "bg-rose-100 text-rose-600"
+                    }`}
+                  >
+                    {confirmDeleteUserId === u.id ? "Confirmar" : "Eliminar"}
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="Nueva clave (mín. 10)"
+                    value={userPassDraft[u.id] || ""}
+                    onChange={(e) =>
+                      setUserPassDraft({
+                        ...userPassDraft,
+                        [u.id]: e.target.value,
+                      })
+                    }
+                    className="flex-1 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if ((userPassDraft[u.id] || "").length < 10) {
+                        notify(
+                          "La contraseña debe tener al menos 10 caracteres",
+                          "error",
+                        );
+                        return;
+                      }
+                      adminResetUserPass(u.id, userPassDraft[u.id]);
+                      setUserPassDraft({ ...userPassDraft, [u.id]: "" });
+                    }}
+                    className="px-3 py-2 rounded-xl bg-cyan-600 text-white text-xs font-bold"
+                  >
+                    Cambiar clave
+                  </button>
+                </div>
+              </Card>
+            ))}
+            {adminUsers.length === 0 && (
+              <Card className="p-6">
+                <p className="text-sm text-slate-500 text-center">
+                  No hay usuarios.
+                </p>
+              </Card>
             )}
           </div>
         )}

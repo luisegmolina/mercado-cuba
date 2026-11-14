@@ -1878,30 +1878,153 @@ app.delete("/api/admin/store/:id", authenticateToken, async (req, res, next) => 
   if (req.user.role !== "superadmin")
     return res.status(403).json({ error: "Admin" });
   try {
-    // Borrar la tienda NO borra la cuenta: el usuario (owner_id)
-    // queda intacto en `users` (ese era el error E1).
+    // Regla de Luis (14-nov-2026): al borrar una tienda se borra
+    // también su usuario dueño, si no le queda ninguna otra tienda.
     const result = await pool.query(
       "DELETE FROM stores WHERE id = $1 RETURNING id, name, owner_id",
       [req.params.id],
     );
     if (result.rowCount === 0)
       return res.status(404).json({ error: "Tienda no encontrada" });
+    const store = result.rows[0];
     await logAudit({
       actor_type: "admin",
       actor_id: req.user.admin_id,
       action: "store_delete",
       target_type: "store",
-      target_id: result.rows[0].id,
+      target_id: store.id,
       details: {
-        name: result.rows[0].name,
-        owner_id: result.rows[0].owner_id,
+        name: store.name,
+        owner_id: store.owner_id,
       },
     });
-    res.json({ success: true });
+    let userDeleted = false;
+    if (store.owner_id) {
+      const remaining = await pool.query(
+        "SELECT COUNT(*)::int AS n FROM stores WHERE owner_id = $1",
+        [store.owner_id],
+      );
+      if (remaining.rows[0].n === 0) {
+        const user = await pool.query(
+          "DELETE FROM users WHERE id = $1 RETURNING id, whatsapp, owner_name",
+          [store.owner_id],
+        );
+        if (user.rowCount > 0) {
+          userDeleted = true;
+          await logAudit({
+            actor_type: "admin",
+            actor_id: req.user.admin_id,
+            action: "user_delete",
+            target_type: "user",
+            target_id: user.rows[0].id,
+            details: {
+              whatsapp: user.rows[0].whatsapp,
+              owner_name: user.rows[0].owner_name,
+              store_id: store.id,
+              store_name: store.name,
+            },
+          });
+        }
+      }
+    }
+    res.json({ success: true, user_deleted: userDeleted });
   } catch (err) {
     next(err);
   }
 });
+
+// Gestión de usuarios desde el panel de Super Admin (14-nov-2026):
+// listar, borrar y resetear la clave de cualquier usuario vendedor.
+// Borrar un usuario borra también sus tiendas (CASCADE en owner_id).
+app.get("/api/admin/users", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.whatsapp, u.owner_name, u.created_at,
+        (SELECT name FROM stores WHERE owner_id = u.id ORDER BY created_at LIMIT 1) AS store_name,
+        (SELECT COUNT(*)::int FROM stores WHERE owner_id = u.id) AS store_count
+       FROM users u ORDER BY u.created_at DESC`,
+    );
+    res.json({ users: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete(
+  "/api/admin/users/:id",
+  authenticateToken,
+  async (req, res, next) => {
+    if (req.user.role !== "superadmin")
+      return res.status(403).json({ error: "Admin" });
+    try {
+      const stores = await pool.query(
+        "SELECT COUNT(*)::int AS n FROM stores WHERE owner_id = $1",
+        [req.params.id],
+      );
+      const result = await pool.query(
+        "DELETE FROM users WHERE id = $1 RETURNING id, whatsapp, owner_name",
+        [req.params.id],
+      );
+      if (result.rowCount === 0)
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      await logAudit({
+        actor_type: "admin",
+        actor_id: req.user.admin_id,
+        action: "user_delete",
+        target_type: "user",
+        target_id: result.rows[0].id,
+        details: {
+          whatsapp: result.rows[0].whatsapp,
+          owner_name: result.rows[0].owner_name,
+          stores_deleted: stores.rows[0].n,
+        },
+      });
+      res.json({ success: true, stores_deleted: stores.rows[0].n });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// Resetear la clave de un usuario vendedor por su id (para usuarios
+// sin tienda no sirve el reset por tienda).
+app.put(
+  "/api/admin/users/:id/password",
+  authenticateToken,
+  async (req, res, next) => {
+    if (req.user.role !== "superadmin")
+      return res.status(403).json({ error: "Admin" });
+    if (!req.body.newPassword || String(req.body.newPassword).length < 10)
+      return res
+        .status(400)
+        .json({ error: "La contraseña debe tener al menos 10 caracteres" });
+    try {
+      const hash = await bcrypt.hash(req.body.newPassword, 12);
+      const result = await pool.query(
+        "UPDATE users SET password_hash = $1, must_reset_password = FALSE WHERE id = $2 RETURNING id, whatsapp, owner_name",
+        [hash, req.params.id],
+      );
+      if (result.rowCount === 0)
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      await logAudit({
+        actor_type: "admin",
+        actor_id: req.user.admin_id,
+        action: "user_password_reset",
+        target_type: "user",
+        target_id: result.rows[0].id,
+        details: {
+          whatsapp: result.rows[0].whatsapp,
+          owner_name: result.rows[0].owner_name,
+        },
+      });
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // Actualizar contraseña de tienda desde admin: se resetea la clave del
 // USUARIO dueño de la tienda (no de la tienda, que ya no tiene clave).
