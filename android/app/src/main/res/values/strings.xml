@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mercado Cuba</string>
+    <string name="title_activity_main">Mercado Cuba</string>
+    <string name="package_name">com.luis.mercadocuba</string>
+    <string name="custom_url_scheme">com.luis.mercadocuba</string>
+</resources>

@@ -1,0 +1,9 @@
+{
+	"appId": "com.luis.mercadocuba",
+	"appName": "Mercado Cuba",
+	"webDir": "build",
+	"server": {
+		"url": "https://mercado-cuba.pages.dev",
+		"cleartext": false
+	}
+}
