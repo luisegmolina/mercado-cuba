@@ -23,6 +23,8 @@ import {
   CUBA_HERO,
   firstProductImage,
   cleanName,
+  useGoBack,
+  useCloseDetail,
 } from "./shared";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
@@ -34,6 +36,7 @@ import {
   useNavigate,
   useParams,
   useLocation,
+  useSearchParams,
 } from "react-router-dom";
 // Importamos una colección completa de iconos para mejorar la experiencia visual
 import {
@@ -1137,7 +1140,19 @@ const LandingPage = () => {
   const [storesError, setStoresError] = useState(false);
   const [featured, setFeatured] = useState([]);
   const [productsTotal, setProductsTotal] = useState(null);
-  const [detailProduct, setDetailProduct] = useState(null);
+  // El detalle destacado vive en la URL (?producto=<id>): abrirlo es un
+  // paso del historial y atrás lo cierra.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const productoId = searchParams.get("producto");
+  const detailProduct = productoId
+    ? featured.find((p) => p.id === productoId) || null
+    : null;
+  const closeDetail = useCloseDetail();
+  const openDetail = (p) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("producto", p.id);
+    setSearchParams(next);
+  };
   const [covers, setCovers] = useState({});
   // Buscador y "Cargar más" de tiendas (12 por tanda).
   const [storeQuery, setStoreQuery] = useState("");
@@ -1179,6 +1194,21 @@ const LandingPage = () => {
   useEffect(() => {
     loadLandingData();
   }, []);
+
+  // Parámetro de producto que no está entre los destacados (enlace
+  // directo): quítalo sin añadir historial.
+  useEffect(() => {
+    if (
+      productoId &&
+      (featured.length > 0 || productsTotal !== null) &&
+      !detailProduct
+    ) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("producto");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId, featured, productsTotal]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1542,7 +1572,7 @@ const LandingPage = () => {
               {featured.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setDetailProduct(p)}
+                  onClick={() => openDetail(p)}
                   className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
                 >
                   <div className="aspect-square bg-sky-50 overflow-hidden relative">
@@ -1781,7 +1811,7 @@ const LandingPage = () => {
       {detailProduct && (
         <ProductDetailModal
           product={detailProduct}
-          onClose={() => setDetailProduct(null)}
+          onClose={closeDetail}
         />
       )}
     </div>
@@ -1795,8 +1825,11 @@ const StoreFrontend = () => {
   const [loadingStore, setLoadingStore] = useState(true);
   const [storeError, setStoreError] = useState(false);
   const [filter, setFilter] = useState("");
-  const [detailProduct, setDetailProduct] = useState(null);
   const [visibleCount, setVisibleCount] = useState(12);
+  const goBack = useGoBack("/explorar");
+  const closeDetail = useCloseDetail();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const productoId = searchParams.get("producto");
 
   // Al cambiar de tienda o de búsqueda, se vuelve a mostrar desde arriba.
   useEffect(() => {
@@ -1820,6 +1853,20 @@ const StoreFrontend = () => {
         setLoadingStore(false);
       });
   }, [slug]);
+
+  // Parámetro de producto que no está en la tienda (enlace directo
+  // obsoleto): quítalo sin añadir historial.
+  useEffect(() => {
+    if (productoId && !loadingStore && data) {
+      const found = (data.products || []).some((p) => p.id === productoId);
+      if (!found) {
+        const next = new URLSearchParams(searchParams);
+        next.delete("producto");
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId, loadingStore, data]);
 
   if (loadingStore) {
     return (
@@ -1860,6 +1907,16 @@ const StoreFrontend = () => {
   const visibleProducts = (Array.isArray(products) ? products : []).filter(
     (p) => p.is_visible !== false,
   );
+  // El detalle vive en la URL (?producto=<id>): abrirlo es un paso del
+  // historial y atrás lo cierra.
+  const detailProduct = productoId
+    ? visibleProducts.find((p) => p.id === productoId) || null
+    : null;
+  const openDetail = (p) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("producto", p.id);
+    setSearchParams(next);
+  };
   const filtered = visibleProducts.filter((p) =>
     (p.name || "").toLowerCase().includes(filter.toLowerCase()),
   );
@@ -1890,7 +1947,7 @@ const StoreFrontend = () => {
     <div className="min-h-screen bg-[#F2FBFC] pb-20">
       <div className="sticky top-0 bg-white/95 backdrop-blur-md z-30 px-4 py-3 border-b border-sky-100 flex items-center gap-3 shadow-sm">
         <button
-          onClick={() => navigate("/")}
+          onClick={goBack}
           className="p-2 -ml-2 rounded-full hover:bg-sky-50 text-slate-500"
         >
           <ChevronLeft />
@@ -2001,7 +2058,7 @@ const StoreFrontend = () => {
           return (
           <div
             key={p.id}
-            onClick={() => setDetailProduct(p)}
+            onClick={() => openDetail(p)}
             className="group bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 flex flex-col cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
           >
             <div className="relative">
@@ -2078,7 +2135,7 @@ const StoreFrontend = () => {
         <ProductDetailModal
           product={detailProduct}
           store={store}
-          onClose={() => setDetailProduct(null)}
+          onClose={closeDetail}
         />
       )}
     </div>
@@ -2087,6 +2144,7 @@ const StoreFrontend = () => {
 
 const AuthScreen = ({ mode }) => {
   const navigate = useNavigate();
+  const goBack = useGoBack("/");
   const {
     loginStore,
     registerStore,
@@ -2125,7 +2183,7 @@ const AuthScreen = ({ mode }) => {
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <button
-          onClick={() => navigate("/")}
+          onClick={goBack}
           className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors"
         >
           <ChevronLeft size={20} /> Volver

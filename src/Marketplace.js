@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ShoppingBag,
   Store,
@@ -20,6 +20,8 @@ import {
   orderMessage,
   ProductDetailModal,
   cleanName,
+  useGoBack,
+  useCloseDetail,
 } from "./shared";
 
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
@@ -36,24 +38,67 @@ const GlobalMarketplace = () => {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [totalProducts, setTotalProducts] = useState(null);
-  const [detailProduct, setDetailProduct] = useState(null);
-  // Vista tras elegir provincia: "stores" (tiendas, por defecto) o "products".
-  const [view, setView] = useState("stores");
   const [stores, setStores] = useState([]);
   const [storesLoading, setStoresLoading] = useState(false);
   const [productsLoaded, setProductsLoaded] = useState(false);
 
-  // Estado crucial: Si es null, mostramos el selector. Si tiene ID, mostramos productos.
+  // --- LA VISTA VIVE EN LA URL (cada paso es un paso del historial) ---
+  // /explorar = selector de provincia
+  // /explorar?provincia=<id> = lista (pestaña Tiendas por defecto)
+  //   &vista=productos = pestaña de productos
+  //   &municipio=<id> = filtro por municipio (no añade historial)
+  //   &producto=<id> = detalle del producto
+  // Así el botón atrás (flecha o teléfono) retrocede de uno en uno:
+  // detalle → lista → selector → inicio.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const provinciaId = searchParams.get("provincia");
+  const view =
+    searchParams.get("vista") === "productos" ? "products" : "stores";
+  const municipioId = searchParams.get("municipio");
+  const productoId = searchParams.get("producto");
   // id "all" = todas las provincias (endpoint /public/all-products).
-  const [selectedProvince, setSelectedProvince] = useState(null);
+  const selectedProvince = provinciaId
+    ? {
+        id: provinciaId,
+        name:
+          provinciaId === "all"
+            ? "Todas las provincias"
+            : provinces.find((p) => p.id === provinciaId)?.name || "",
+      }
+    : null;
   // Municipio dentro de la provincia elegida (null = todos). Solo se
   // muestra cuando la provincia es concreta, no con "Todas".
   const [municipalities, setMunicipalities] = useState([]);
-  const [selectedMunicipality, setSelectedMunicipality] = useState(null);
+  const selectedMunicipality = municipioId
+    ? {
+        id: municipioId,
+        name: municipalities.find((m) => m.id === municipioId)?.name || "",
+      }
+    : null;
+  const detailProduct = productoId
+    ? products.find((p) => p.id === productoId) || null
+    : null;
   const [filterText, setFilterText] = useState("");
 
   const navigate = useNavigate();
+  const goBack = useGoBack("/explorar");
+  const goHome = useGoBack("/");
+  const closeDetail = useCloseDetail();
   const searchTimer = useRef(null);
+  // Para no pedir la primera página de productos dos veces en el mismo
+  // arranque (el efecto de provincia y el de vista corren juntos).
+  const productsKeyRef = useRef("");
+
+  // Cambia parámetros de la URL. push=true (por defecto) crea un paso del
+  // historial (vista nueva); push=false reemplaza (filtros, no añaden pasos).
+  const updateParams = (patch, push = true) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(patch).forEach(([k, v]) => {
+      if (v === null || v === undefined) next.delete(k);
+      else next.set(k, v);
+    });
+    setSearchParams(next, { replace: !push });
+  };
 
   // 1. Al inicio, SOLO cargamos la lista de provincias (muy rápido)
   const loadProvinces = async () => {
@@ -161,21 +206,82 @@ const GlobalMarketplace = () => {
     }
   };
 
-  const handleSelectProvince = (provinceId, provinceName) => {
-    const province = { id: provinceId, name: provinceName };
-    setSelectedProvince(province);
-    setSelectedMunicipality(null);
-    setMunicipalities([]);
-    setFilterText("");
+  // Pide la primera página de productos para la URL actual (con el
+  // filtro de búsqueda y municipio que haya). La clave evita pedirla dos
+  // veces en el mismo arranque.
+  const requestProducts = (force = false) => {
+    if (!provinciaId) return;
+    const key = `${provinciaId}|${municipioId || ""}|${filterText}`;
+    if (!force && productsKeyRef.current === key) return;
+    productsKeyRef.current = key;
+    setProductsLoaded(true);
+    loadProducts(
+      { id: provinciaId },
+      0,
+      false,
+      filterText,
+      municipioId ? { id: municipioId } : null,
+    );
+  };
+
+  // Al cambiar la provincia en la URL: reinicia las listas, carga tiendas
+  // (y productos si la URL ya pide esa vista, p. ej. enlace directo).
+  useEffect(() => {
+    if (!provinciaId) return;
+    setStores([]);
+    setProducts([]);
     setOffset(0);
     setHasMore(false);
     setTotalProducts(null);
-    setProducts([]);
     setProductsLoaded(false);
-    setView("stores");
-    setStores([]);
-    loadStores(province);
-    if (provinceId !== "all") loadMunicipalities(provinceId);
+    productsKeyRef.current = "";
+    loadStores({ id: provinciaId });
+    if (provinciaId !== "all") loadMunicipalities(provinciaId);
+    else setMunicipalities([]);
+    if (view === "products") requestProducts();
+    window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provinciaId]);
+
+  // Al cambiar a la pestaña Productos: carga la primera página si aún no.
+  useEffect(() => {
+    if (!provinciaId || view !== "products" || productsLoaded) return;
+    requestProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  // Al cambiar el municipio: recarga los productos con el nuevo filtro
+  // (solo si la vista de productos ya estaba cargada; el primer arranque
+  // lo cubre el efecto de provincia).
+  const firstMunicipioRun = useRef(true);
+  useEffect(() => {
+    if (firstMunicipioRun.current) {
+      firstMunicipioRun.current = false;
+      return;
+    }
+    if (!provinciaId || view !== "products" || !productsLoaded) return;
+    requestProducts(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [municipioId]);
+
+  // Parámetro de producto que no está en lo cargado (enlace directo a una
+  // página posterior): quítalo sin añadir historial.
+  useEffect(() => {
+    if (productoId && productsLoaded && !loading && !detailProduct) {
+      updateParams({ producto: null }, false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productoId, productsLoaded, loading]);
+
+  // Elegir provincia = un paso nuevo del historial (el selector queda atrás).
+  const handleSelectProvince = (provinceId) => {
+    setFilterText("");
+    updateParams({
+      provincia: provinceId,
+      municipio: null,
+      vista: null,
+      producto: null,
+    });
   };
 
   // Municipios de la provincia elegida (para el filtro de Explorar).
@@ -193,53 +299,22 @@ const GlobalMarketplace = () => {
     }
   };
 
-  // Elegir municipio: las tiendas se filtran en local (filteredStores)
-  // y los productos se vuelven a pedir solo si ya estaban cargados.
-  const handleSelectMunicipality = (municipalityId, municipalityName) => {
-    const municipality =
-      municipalityId === "all"
-        ? null
-        : { id: municipalityId, name: municipalityName };
-    setSelectedMunicipality(municipality);
+  // Elegir municipio es un filtro: reemplaza la URL sin añadir historial.
+  const handleSelectMunicipality = (municipalityId) => {
     setFilterText("");
-    setOffset(0);
-    setHasMore(false);
-    setTotalProducts(null);
-    setProducts([]);
-    if (view === "products" && productsLoaded && selectedProvince) {
-      loadProducts(selectedProvince, 0, false, "", municipality);
-    }
+    updateParams(
+      { municipio: municipalityId === "all" ? null : municipalityId },
+      false,
+    );
   };
 
-  // Cambiar entre Tiendas y Productos. Los productos se cargan la primera
-  // vez que se piden, para no hacer dos peticiones al elegir provincia.
+  // Cambiar de pestaña (Tiendas/Productos) es un paso del historial.
   const switchView = (next) => {
-    setView(next);
-    if (
-      next === "products" &&
-      selectedProvince &&
-      !productsLoaded &&
-      !loading
-    ) {
-      setProductsLoaded(true);
-      loadProducts(selectedProvince, 0, false);
-    }
+    updateParams({ vista: next === "products" ? "productos" : null });
   };
 
-  const handleBackToSelector = () => {
-    setSelectedProvince(null);
-    setSelectedMunicipality(null);
-    setMunicipalities([]);
-    setProducts([]);
-    setFilterText("");
-    setLoadError(null);
-    setOffset(0);
-    setHasMore(false);
-    setTotalProducts(null);
-    setView("stores");
-    setStores([]);
-    setProductsLoaded(false);
-  };
+  // Volver al selector: un paso atrás (el selector es la vista anterior).
+  const handleBackToSelector = goBack;
 
   const handleLoadMore = () => {
     if (selectedProvince && !loading) {
@@ -312,7 +387,7 @@ const GlobalMarketplace = () => {
           Reintentar
         </button>
         <button
-          onClick={() => navigate("/")}
+          onClick={goHome}
           className="mt-6 text-slate-500 text-sm flex items-center gap-2 hover:text-slate-800"
         >
           <ChevronLeft size={16} /> Volver al inicio
@@ -364,7 +439,7 @@ const GlobalMarketplace = () => {
         </div>
 
         <button
-          onClick={() => navigate("/")}
+          onClick={goHome}
           className="relative mt-12 text-slate-500 text-sm flex items-center gap-2 hover:text-slate-800"
         >
           <ChevronLeft size={16} /> Volver al inicio
@@ -380,7 +455,7 @@ const GlobalMarketplace = () => {
       <div className="sticky top-0 bg-[#F2FBFC]/95 backdrop-blur-md z-30 px-4 py-3 border-b border-slate-200 flex items-center justify-between shadow-2xl">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate("/")}
+            onClick={goBack}
             className="p-2 -ml-2 rounded-full hover:bg-sky-100 text-slate-500"
           >
             <ChevronLeft />
@@ -611,7 +686,7 @@ const GlobalMarketplace = () => {
             return (
               <div
                 key={p.id}
-                onClick={() => setDetailProduct(p)}
+                onClick={() => updateParams({ producto: p.id })}
                 className="group bg-white rounded-3xl overflow-hidden border border-slate-200 flex flex-col shadow-xl cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
               >
                 <div className="aspect-square bg-sky-50 relative overflow-hidden">
@@ -772,7 +847,7 @@ const GlobalMarketplace = () => {
       {detailProduct && (
         <ProductDetailModal
           product={detailProduct}
-          onClose={() => setDetailProduct(null)}
+          onClose={closeDetail}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   X,
   MessageCircle,
@@ -420,8 +420,44 @@ export const PhotoUploader = ({
 // --- VISTA DE PRODUCTO ---
 // Modal a pantalla completa en el móvil para ver UN producto con
 // todas sus fotos, precio, tienda y el botón de pedir.
+// --- NAVEGACIÓN ATRÁS (un paso cada vez) ---
+// React Router guarda el índice del historial en window.history.state.idx:
+// 0 = primera página de la pestaña (enlace directo), >0 = hay a dónde volver.
+// Atrás de un paso: si hay historial, vuelve un paso (igual que el botón
+// del teléfono); si no hay, va a la vista padre sin dejar un callejón
+// sin salida (replace, para que atrás desde ahí salga de la app y no
+// vuelva a la misma página).
+export function useGoBack(fallback = "/") {
+  const navigate = useNavigate();
+  return useCallback(() => {
+    const idx =
+      window.history.state && window.history.state.idx;
+    if (typeof idx === "number" && idx > 0) navigate(-1);
+    else navigate(fallback, { replace: true });
+  }, [navigate, fallback]);
+}
+
+// Cierra un detalle abierto por URL (?producto=): atrás si hay historial,
+// si no quita el parámetro sin salir de la página.
+export function useCloseDetail() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  return useCallback(() => {
+    const idx =
+      window.history.state && window.history.state.idx;
+    if (typeof idx === "number" && idx > 0) {
+      navigate(-1);
+    } else {
+      const next = new URLSearchParams(searchParams);
+      next.delete("producto");
+      setSearchParams(next, { replace: true });
+    }
+  }, [navigate, searchParams, setSearchParams]);
+}
+
 export const ProductDetailModal = ({ product, store, onClose }) => {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const imgs = parseImages(product.images ?? product.image_url);
   const [idx, setIdx] = useState(0);
 
@@ -598,8 +634,12 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               {storeSlug && (
                 <button
                   onClick={() => {
-                    onClose();
-                    navigate(`/${storeSlug}`);
+                    // Si ya estamos en esa tienda, solo cierra el detalle;
+                    // si no, ir a la tienda es un paso nuevo del historial
+                    // (atrás desde la tienda vuelve a este detalle).
+                    if (pathname.replace(/\/$/, "") === `/${storeSlug}`)
+                      onClose();
+                    else navigate(`/${storeSlug}`);
                   }}
                   className="w-full bg-sky-50 border border-slate-200 text-slate-900 py-3 rounded-2xl text-sm font-bold hover:bg-sky-100 transition-all flex items-center justify-center gap-2"
                 >
