@@ -1259,19 +1259,19 @@ const LandingPage = () => {
             </button>
             <button
               onClick={() => navigate("/register")}
-              className="sm:col-span-2 w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-4 rounded-2xl text-base font-extrabold hover:from-amber-400 hover:to-orange-400 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
+              className="sm:col-span-2 w-full bg-cyan-600 text-white py-4 rounded-2xl text-base font-extrabold hover:bg-cyan-500 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
             >
               <UserPlus size={20} /> Crear Mi Tienda
             </button>
             <button
               onClick={() => navigate("/login")}
-              className="w-full bg-white/15 text-white py-3.5 rounded-2xl text-sm font-bold border border-white/50 hover:bg-white/25 transition-all flex items-center justify-center gap-2 backdrop-blur active:scale-[0.98]"
+              className="w-full bg-sky-900 text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-sky-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               <User size={18} /> Soy Vendedor (Entrar)
             </button>
             <button
               onClick={() => setShowManual(true)}
-              className="w-full bg-white/15 text-white py-3.5 rounded-2xl text-sm font-bold border border-white/50 hover:bg-white/25 transition-all flex items-center justify-center gap-2 backdrop-blur active:scale-[0.98]"
+              className="w-full bg-sky-900 text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-sky-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               <FileText size={18} /> ¿Cómo funciona? (Guía)
             </button>
@@ -1280,7 +1280,7 @@ const LandingPage = () => {
                 href={licenseUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="sm:col-span-2 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-4 rounded-2xl text-base font-extrabold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green active:scale-[0.98]"
+                className="sm:col-span-2 w-full bg-emerald-600 text-white py-4 rounded-2xl text-base font-extrabold hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green active:scale-[0.98]"
               >
                 <MessageCircle size={20} /> Solicitar Licencia
               </a>
