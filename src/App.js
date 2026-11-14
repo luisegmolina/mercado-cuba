@@ -3009,7 +3009,7 @@ const VendorDashboard = () => {
 // Etiquetas legibles para las acciones de auditoría (si aparece una
 // acción nueva sin etiqueta, se muestra el nombre tal cual).
 const AUDIT_ACTION_LABELS = {
-  login: "Inicio de sesión (vendedor)",
+  login: "Inicio de sesión",
   login_failed: "Inicio de sesión fallido",
   store_register: "Tienda registrada",
   product_create: "Producto creado",
@@ -3034,6 +3034,16 @@ const AUDIT_ACTION_LABELS = {
   admin_contact_change: "Contacto del admin cambiado",
   admin_rates_update: "Tasas actualizadas",
   db_migration: "Migración de base de datos",
+};
+
+// Formatea un valor del detalle de un evento de auditoría para mostrarlo.
+// Sin esto, los objetos se veían como "[object Object]" (le pasó a las tasas).
+const formatAuditDetail = (k, v) => {
+  if (k === "valid_until") return new Date(v).toLocaleDateString();
+  if (k === "rates" && Array.isArray(v))
+    return v.map((r) => `${r.currency} ${r.rate_cup}`).join(" · ");
+  if (v !== null && typeof v === "object") return JSON.stringify(v);
+  return String(v);
 };
 
 const SuperAdminPanel = () => {
@@ -3905,9 +3915,7 @@ const SuperAdminPanel = () => {
                             .map(([k, v]) => (
                               <p key={k}>
                                 <span className="font-bold">{k}:</span>{" "}
-                                {k === "valid_until"
-                                  ? new Date(v).toLocaleDateString()
-                                  : String(v)}
+                                {formatAuditDetail(k, v)}
                               </p>
                             ))}
                         </div>
