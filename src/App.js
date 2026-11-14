@@ -546,6 +546,34 @@ const AppProvider = ({ children }) => {
     } catch (e) {}
   };
 
+  // Auditoría: lee el registro de eventos (solo superadmin). Devuelve
+  // { items, total, actions } o null si falla.
+  const fetchAudit = async ({
+    limit = 20,
+    offset = 0,
+    action = null,
+    actorType = null,
+    q = null,
+  } = {}) => {
+    try {
+      const params = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset),
+      });
+      if (action) params.set("action", action);
+      if (actorType) params.set("actor_type", actorType);
+      if (q) params.set("q", q);
+      const res = await fetch(`${API_URL}/admin/audit?${params.toString()}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      return await res.json();
+    } catch (e) {
+      notify(e.message || "Error al cargar la auditoría", "error");
+      return null;
+    }
+  };
+
   const generateCode = async () => {
     const code = "PRO-" + Math.random().toString(36).substr(2, 6).toUpperCase();
     await fetch(`${API_URL}/admin/codes`, {
@@ -828,6 +856,7 @@ const AppProvider = ({ children }) => {
         updateStoreSettings,
         loginSuperAdmin,
         fetchAdminData,
+        fetchAudit,
         generateCode,
         toggleStore,
         deleteStore,
@@ -2977,6 +3006,36 @@ const VendorDashboard = () => {
   );
 };
 
+// Etiquetas legibles para las acciones de auditoría (si aparece una
+// acción nueva sin etiqueta, se muestra el nombre tal cual).
+const AUDIT_ACTION_LABELS = {
+  login: "Inicio de sesión (vendedor)",
+  login_failed: "Inicio de sesión fallido",
+  store_register: "Tienda registrada",
+  product_create: "Producto creado",
+  product_update: "Producto editado",
+  product_delete: "Producto borrado",
+  store_settings: "Ajustes de tienda guardados",
+  province_create: "Provincia agregada",
+  province_delete: "Provincia eliminada",
+  municipality_create: "Municipio agregado",
+  municipality_delete: "Municipio eliminado",
+  license_create: "Licencia creada",
+  license_delete: "Licencia borrada",
+  license_revoke: "Licencia revocada",
+  license_extend: "Licencia extendida",
+  license_grant: "Licencia concedida",
+  store_suspend: "Tienda suspendida",
+  store_unsuspend: "Tienda reactivada",
+  store_delete: "Tienda eliminada",
+  user_password_reset: "Clave de vendedor reseteada",
+  store_contact_change: "Contacto de tienda cambiado",
+  admin_password_change: "Clave del admin cambiada",
+  admin_contact_change: "Contacto del admin cambiado",
+  admin_rates_update: "Tasas actualizadas",
+  db_migration: "Migración de base de datos",
+};
+
 const SuperAdminPanel = () => {
   const { notify } = useToast();
   const {
@@ -2994,6 +3053,7 @@ const SuperAdminPanel = () => {
     adminUpdateStoreContact,
     updateSuperAdminContact,
     updateRates,
+    fetchAudit,
     provinces,
     createProvince,
     deleteProvince,
@@ -3022,6 +3082,17 @@ const SuperAdminPanel = () => {
   const [locMunicipalities, setLocMunicipalities] = useState([]);
   const [newProvinceName, setNewProvinceName] = useState("");
   const [newMunicipalityName, setNewMunicipalityName] = useState("");
+  // Auditoría: eventos del registro, con filtros y paginación.
+  const AUDIT_PER_PAGE = 20;
+  const [auditItems, setAuditItems] = useState([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditActions, setAuditActions] = useState([]);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditAction, setAuditAction] = useState("");
+  const [auditActor, setAuditActor] = useState("");
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditAppliedQuery, setAuditAppliedQuery] = useState("");
+  const [auditLoading, setAuditLoading] = useState(false);
   // Tasas de cambio (elTOQUE): se cargan del endpoint público y se
   // guardan con PUT /api/admin/rates al pulsar Guardar.
   const [ratesForm, setRatesForm] = useState({
@@ -3104,6 +3175,30 @@ const SuperAdminPanel = () => {
     loadLocMunicipalities(locProvinceId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locProvinceId]);
+
+  // Auditoría: carga los eventos cuando se abre la pestaña o cambian
+  // los filtros o la página.
+  const loadAudit = async () => {
+    setAuditLoading(true);
+    const data = await fetchAudit({
+      limit: AUDIT_PER_PAGE,
+      offset: (auditPage - 1) * AUDIT_PER_PAGE,
+      action: auditAction || null,
+      actorType: auditActor || null,
+      q: auditAppliedQuery || null,
+    });
+    if (data) {
+      setAuditItems(data.items || []);
+      setAuditTotal(data.total || 0);
+      setAuditActions(data.actions || []);
+    }
+    setAuditLoading(false);
+  };
+  useEffect(() => {
+    if (tab !== "audit") return;
+    loadAudit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, auditPage, auditAction, auditActor, auditAppliedQuery]);
 
   if (!adminData) return null;
   const { stats, stores, codes } = adminData;
@@ -3238,7 +3333,7 @@ const SuperAdminPanel = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {["stores", "codes", "rates", "loc", "sec"].map((t) => (
+          {["stores", "codes", "rates", "loc", "audit", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -3252,7 +3347,9 @@ const SuperAdminPanel = () => {
                     ? "Tasas"
                     : t === "loc"
                       ? "Ubicación"
-                      : "Seguridad"}
+                      : t === "audit"
+                        ? "Auditoría"
+                        : "Seguridad"}
             </button>
           ))}
         </div>
@@ -3705,6 +3802,155 @@ const SuperAdminPanel = () => {
                     )}
                   </div>
                 </>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {tab === "audit" && (
+          <div className="space-y-4">
+            <Card className="p-4">
+              <h3 className="font-bold text-slate-900 mb-1">Auditoría</h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Registro automático de todo lo que se hace en la web: inicios
+                de sesión, registros, productos, ajustes, licencias, tasas y
+                cambios del admin. Solo tú puedes verlo.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <select
+                  className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+                  value={auditAction}
+                  onChange={(e) => {
+                    setAuditAction(e.target.value);
+                    setAuditPage(1);
+                  }}
+                >
+                  <option value="">Todas las acciones</option>
+                  {auditActions.map((a) => (
+                    <option key={a} value={a}>
+                      {AUDIT_ACTION_LABELS[a] || a}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+                  value={auditActor}
+                  onChange={(e) => {
+                    setAuditActor(e.target.value);
+                    setAuditPage(1);
+                  }}
+                >
+                  <option value="">Todos los actores</option>
+                  <option value="admin">SuperAdmin</option>
+                  <option value="vendor">Vendedores</option>
+                </select>
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setAuditAppliedQuery(auditQuery);
+                  setAuditPage(1);
+                }}
+                className="flex gap-2 mb-3"
+              >
+                <input
+                  type="text"
+                  placeholder="Buscar (tienda, código, WhatsApp...)"
+                  value={auditQuery}
+                  onChange={(e) => setAuditQuery(e.target.value)}
+                  className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+                />
+                <Button type="submit">Buscar</Button>
+              </form>
+              <p className="text-xs text-slate-500 mb-3">
+                {auditTotal} eventos
+              </p>
+              {auditLoading ? (
+                <div className="flex items-center justify-center py-10 gap-2">
+                  <Loader2
+                    className="animate-spin text-cyan-700"
+                    size={24}
+                  />
+                  <p className="text-slate-500 text-sm font-bold">
+                    Cargando eventos...
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {auditItems.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="p-3 bg-white rounded-lg border border-slate-200 space-y-1"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <span className="text-sm font-bold text-slate-900">
+                          {AUDIT_ACTION_LABELS[ev.action] || ev.action}
+                        </span>
+                        <span className="text-[11px] text-slate-500 shrink-0">
+                          {new Date(ev.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {ev.actor_type === "admin"
+                          ? "SuperAdmin"
+                          : ev.actor_name
+                            ? `${ev.actor_name}${ev.actor_whatsapp ? ` (${ev.actor_whatsapp})` : ""}`
+                            : "Desconocido"}
+                        {ev.target_type ? ` · ${ev.target_type}` : ""}
+                      </p>
+                      {ev.details && Object.keys(ev.details).length > 0 && (
+                        <div className="text-xs text-slate-600 space-y-0.5">
+                          {Object.entries(ev.details)
+                            .filter(([k]) => !k.endsWith("_id"))
+                            .map(([k, v]) => (
+                              <p key={k}>
+                                <span className="font-bold">{k}:</span>{" "}
+                                {k === "valid_until"
+                                  ? new Date(v).toLocaleDateString()
+                                  : String(v)}
+                              </p>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {auditItems.length === 0 && (
+                    <p className="text-xs text-slate-500 text-center py-6">
+                      Sin eventos para estos filtros.
+                    </p>
+                  )}
+                </div>
+              )}
+              {auditTotal > AUDIT_PER_PAGE && (
+                <div className="flex items-center justify-between mt-4">
+                  <button
+                    onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+                    disabled={auditPage <= 1}
+                    className="px-4 py-2 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-500 disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-xs text-slate-500">
+                    Página {auditPage} de{" "}
+                    {Math.max(1, Math.ceil(auditTotal / AUDIT_PER_PAGE))}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setAuditPage((p) =>
+                        Math.min(
+                          Math.ceil(auditTotal / AUDIT_PER_PAGE),
+                          p + 1,
+                        ),
+                      )
+                    }
+                    disabled={
+                      auditPage >= Math.ceil(auditTotal / AUDIT_PER_PAGE)
+                    }
+                    className="px-4 py-2 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-500 disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
               )}
             </Card>
           </div>

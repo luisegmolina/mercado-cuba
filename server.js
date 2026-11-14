@@ -660,6 +660,14 @@ app.post("/api/login", authLimiter, async (req, res, next) => {
       await bcrypt
         .compare(String(password || ""), DUMMY_HASH)
         .catch(() => false);
+      await logAudit({
+        actor_type: "vendor",
+        actor_id: null,
+        action: "login_failed",
+        target_type: "user",
+        target_id: null,
+        details: { whatsapp: candidates[0] },
+      });
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
     const user = userRes.rows[0];
@@ -680,9 +688,25 @@ app.post("/api/login", authLimiter, async (req, res, next) => {
       });
     if (!(await bcrypt.compare(password, user.password_hash || ""))) {
       recordLoginFailure(candidates[0]);
+      await logAudit({
+        actor_type: "vendor",
+        actor_id: user.id,
+        action: "login_failed",
+        target_type: "user",
+        target_id: user.id,
+        details: { whatsapp: user.whatsapp },
+      });
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
     clearLoginFailures(candidates[0]);
+    await logAudit({
+      actor_type: "vendor",
+      actor_id: user.id,
+      action: "login",
+      target_type: "user",
+      target_id: user.id,
+      details: { whatsapp: user.whatsapp },
+    });
 
     await pool.query(
       "UPDATE users SET last_login_at = now() WHERE id = $1",
@@ -804,6 +828,15 @@ app.post("/api/register", authLimiter, async (req, res) => {
 
     await client.query("COMMIT");
 
+    await logAudit({
+      actor_type: "vendor",
+      actor_id: user.id,
+      action: "store_register",
+      target_type: "store",
+      target_id: store.id,
+      details: { name: store.name, code },
+    });
+
     const token = jwt.sign(
       { id: user.id, role: "vendor", name: user.owner_name, v: 2 },
       JWT_SECRET,
@@ -857,8 +890,24 @@ app.post("/api/admin/login", authLimiter, async (req, res, next) => {
         JWT_SECRET,
         { expiresIn: "4h", algorithm: "HS256" },
       );
+      await logAudit({
+        actor_type: "admin",
+        actor_id: admin.id,
+        action: "login",
+        target_type: "admin",
+        target_id: admin.id,
+        details: null,
+      });
       res.json({ token });
     } else {
+      await logAudit({
+        actor_type: "admin",
+        actor_id: admin.id,
+        action: "login_failed",
+        target_type: "admin",
+        target_id: admin.id,
+        details: null,
+      });
       res.status(401).json({ error: "Inválido" });
     }
   } catch (err) {
@@ -964,6 +1013,14 @@ app.post("/api/products", authenticateToken, async (req, res, next) => {
         );
       }
       await client.query("COMMIT");
+      await logAudit({
+        actor_type: "vendor",
+        actor_id: req.user.id,
+        action: "product_create",
+        target_type: "product",
+        target_id: product.id,
+        details: { name: product.name, store_id: store.id },
+      });
       res.json(await fetchProductWithImages(product.id));
     } catch (e) {
       try {
@@ -999,7 +1056,7 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
   try {
     // Propiedad: el producto debe ser de una tienda del usuario.
     const check = await pool.query(
-      `SELECT p.store_id FROM products p
+      `SELECT p.store_id, p.name FROM products p
        JOIN stores s ON s.id = p.store_id
        WHERE p.id = $1 AND s.owner_id = $2`,
       [id, req.user.id],
@@ -1049,6 +1106,17 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
         }
       }
       await client.query("COMMIT");
+      await logAudit({
+        actor_type: "vendor",
+        actor_id: req.user.id,
+        action: "product_update",
+        target_type: "product",
+        target_id: id,
+        details: {
+          name: check.rows[0].name,
+          store_id: check.rows[0].store_id,
+        },
+      });
       res.json(await fetchProductWithImages(id));
     } catch (e) {
       try {
@@ -1066,7 +1134,7 @@ app.put("/api/products/:id", authenticateToken, async (req, res, next) => {
 app.delete("/api/products/:id", authenticateToken, async (req, res, next) => {
   try {
     const check = await pool.query(
-      `SELECT p.store_id FROM products p
+      `SELECT p.store_id, p.name FROM products p
        JOIN stores s ON s.id = p.store_id
        WHERE p.id = $1 AND s.owner_id = $2`,
       [req.params.id, req.user.id],
@@ -1074,6 +1142,17 @@ app.delete("/api/products/:id", authenticateToken, async (req, res, next) => {
     if (check.rows.length === 0)
       return res.status(403).json({ error: "No autorizado" });
     await pool.query("DELETE FROM products WHERE id = $1", [req.params.id]);
+    await logAudit({
+      actor_type: "vendor",
+      actor_id: req.user.id,
+      action: "product_delete",
+      target_type: "product",
+      target_id: req.params.id,
+      details: {
+        name: check.rows[0].name,
+        store_id: check.rows[0].store_id,
+      },
+    });
     res.json({ success: true });
   } catch (err) {
     next(err);
@@ -1181,6 +1260,18 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
         store.id,
       ],
     );
+    await logAudit({
+      actor_type: "vendor",
+      actor_id: req.user.id,
+      action: "store_settings",
+      target_type: "store",
+      target_id: store.id,
+      details: {
+        name: String(name).trim(),
+        province_id: finalProvinceId,
+        municipality_id: finalMunicipalityId,
+      },
+    });
     res.json(await fetchStoreFull(store.id));
   } catch (err) {
     next(err);
@@ -1417,6 +1508,72 @@ app.get("/api/admin/dashboard", authenticateToken, async (req, res, next) => {
       support_whatsapp: adminRow.rows[0]
         ? adminRow.rows[0].support_whatsapp
         : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Auditoría: lectura del registro de eventos (audit_log). SOLO el
+// superadmin puede leerlo: no hay ruta pública ni de vendedor que lo
+// exponga. Filtros: action exacta, actor_type y búsqueda libre (acción,
+// tipo de objetivo, nombre/WhatsApp del actor o contenido de details).
+app.get("/api/admin/audit", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Requiere SuperAdmin" });
+  try {
+    const { limit, offset } = parsePagination(req);
+    const action =
+      req.query.action && String(req.query.action).trim()
+        ? String(req.query.action).trim()
+        : null;
+    const actorType =
+      req.query.actor_type && String(req.query.actor_type).trim()
+        ? String(req.query.actor_type).trim()
+        : null;
+    const q =
+      req.query.q && String(req.query.q).trim()
+        ? String(req.query.q).trim()
+        : null;
+    const where = [];
+    const params = [];
+    if (action) {
+      params.push(action);
+      where.push(`a.action = $${params.length}`);
+    }
+    if (actorType) {
+      params.push(actorType);
+      where.push(`a.actor_type = $${params.length}`);
+    }
+    if (q) {
+      params.push(q);
+      const i = params.length;
+      where.push(
+        `(a.action ILIKE '%' || $${i} || '%' OR a.target_type ILIKE '%' || $${i} || '%' OR COALESCE(u.owner_name, '') ILIKE '%' || $${i} || '%' OR COALESCE(u.whatsapp, '') ILIKE '%' || $${i} || '%' OR a.details::text ILIKE '%' || $${i} || '%')`,
+      );
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const items = await pool.query(
+      `SELECT a.*, u.owner_name AS actor_name, u.whatsapp AS actor_whatsapp
+       FROM audit_log a
+       LEFT JOIN users u ON a.actor_type = 'vendor' AND a.actor_id = u.id
+       ${whereSql}
+       ORDER BY a.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset],
+    );
+    const total = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM audit_log a
+       LEFT JOIN users u ON a.actor_type = 'vendor' AND a.actor_id = u.id
+       ${whereSql}`,
+      params,
+    );
+    const actions = await pool.query(
+      "SELECT DISTINCT action FROM audit_log ORDER BY action ASC",
+    );
+    res.json({
+      items: items.rows,
+      total: total.rows[0].total,
+      actions: actions.rows.map((r) => r.action),
     });
   } catch (err) {
     next(err);
