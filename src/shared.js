@@ -11,6 +11,9 @@ import {
   Camera,
   ImagePlus,
   Loader2,
+  Heart,
+  Star,
+  BadgeCheck,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -158,6 +161,143 @@ export const formatPrice = (value, code) => {
 // Nombres sin espacios al inicio/fin (hay tiendas y productos guardados
 // con espacios al final). Para mostrar, nunca para guardar.
 export const cleanName = (v) => String(v ?? "").trim();
+
+// Fecha corta en español ("14 nov 2026").
+export const formatDateShort = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+// --- CATEGORÍAS, DESTACADOS Y FAVORITOS ---
+// Lista canónica de categorías en español (la misma que en server.js y
+// que devuelve /api/public/categories). El filtro de búsqueda y el
+// formulario del vendedor usan esta lista.
+export const PRODUCT_CATEGORIES = [
+  "Alimentos",
+  "Bebidas",
+  "Electrodomésticos",
+  "Celulares",
+  "Ropa y calzado",
+  "Hogar",
+  "Motos",
+  "Belleza",
+  "Salud",
+  "Ferretería",
+  "Juguetes",
+  "Otros",
+];
+
+// Duraciones de anuncio destacado, como los paquetes de Revolico.
+// Los precios se configuran en el panel del súper admin (NULL = sin definir).
+export const FEATURED_DURATIONS = [3, 7, 30];
+
+// ¿Sigue vigente el destacado? Solo por fecha (featured_until > ahora),
+// sin depender de ningún cron.
+export const isFeatured = (p) =>
+  !!(
+    p &&
+    p.featured_until &&
+    new Date(p.featured_until).getTime() > Date.now()
+  );
+
+// Sello "Destacado" para tarjetas y detalle de producto.
+export const FeaturedBadge = () => (
+  <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow">
+    <Star size={11} className="fill-white text-white" /> Destacado
+  </span>
+);
+
+// Sello "Vendedor verificado" para la página de la tienda y tarjetas.
+export const VerifiedBadge = () => (
+  <span className="inline-flex items-center gap-1 bg-cyan-600/10 text-cyan-700 border border-cyan-600/20 text-xs font-bold px-2 py-1 rounded-full">
+    <BadgeCheck size={13} /> Vendedor verificado
+  </span>
+);
+
+// Favoritos: solo ids en localStorage (sin cuenta ni inicio de sesión).
+// Al abrir Favoritos se re-consultan los datos por id, así el precio
+// que se ve es el actual aunque haya cambiado. Funciona en la web y en
+// la APK (el WebView guarda el localStorage del origen pages.dev).
+// Si el almacenamiento no está disponible (incógnito, lleno), se
+// degrada en silencio y el corazón simplemente no guarda.
+export const FAVORITES_KEY = "mc:favorites";
+const FAVORITES_EVENT = "mc:favorites-changed";
+
+export const getFavoriteIds = () => {
+  try {
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr)
+      ? arr.filter((id) => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+export const isFavorite = (id) => getFavoriteIds().includes(id);
+
+export const toggleFavorite = (id) => {
+  const ids = getFavoriteIds();
+  const next = ids.includes(id)
+    ? ids.filter((x) => x !== id)
+    : [...ids, id];
+  try {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
+  } catch {}
+  window.dispatchEvent(
+    new CustomEvent(FAVORITES_EVENT, { detail: next }),
+  );
+  return next;
+};
+
+// Hook para leer los favoritos y re-renderizar cuando cambian en
+// cualquier tarjeta o en el detalle.
+export const useFavorites = () => {
+  const [favs, setFavs] = useState(getFavoriteIds);
+  useEffect(() => {
+    const handler = (e) => setFavs(e.detail || getFavoriteIds());
+    window.addEventListener(FAVORITES_EVENT, handler);
+    return () => window.removeEventListener(FAVORITES_EVENT, handler);
+  }, []);
+  return [favs, toggleFavorite];
+};
+
+// Corazón de favorito para las tarjetas de producto. No abre el detalle:
+// el clic se queda en el corazón.
+export const FavHeart = ({
+  productId,
+  className = "absolute top-2 right-2 z-10",
+}) => {
+  const [favs, toggle] = useFavorites();
+  const active = favs.includes(productId);
+  return (
+    <button
+      type="button"
+      aria-label={
+        active ? "Quitar de favoritos" : "Guardar en favoritos"
+      }
+      onClick={(e) => {
+        e.stopPropagation();
+        toggle(productId);
+      }}
+      className={`${className} bg-white/90 backdrop-blur p-2 rounded-full shadow-md hover:scale-110 active:scale-95 transition-transform`}
+    >
+      <Heart
+        size={18}
+        className={
+          active ? "fill-rose-500 text-rose-500" : "text-slate-500"
+        }
+      />
+    </button>
+  );
+};
 
 export const priceLabel = (p) => {
   const parts = [
@@ -625,9 +765,20 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
 
           {/* Datos del producto */}
           <div className="p-5 space-y-2">
-            <h2 className="font-display text-xl font-extrabold text-slate-900 leading-snug">
-              {cleanName(product.name)}
-            </h2>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="font-display text-xl font-extrabold text-slate-900 leading-snug">
+                {cleanName(product.name)}
+              </h2>
+              <FavHeart
+                productId={product.id}
+                className="relative shrink-0 z-10"
+              />
+            </div>
+            {isFeatured(product) && (
+              <p>
+                <FeaturedBadge />
+              </p>
+            )}
             <p className="text-lg font-black bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
               {priceLabel(product)}
             </p>
@@ -664,8 +815,13 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               </p>
             )}
             {storeName && (
-              <p className="text-xs text-slate-500 flex items-center gap-1 pt-1">
+              <p className="text-xs text-slate-500 flex flex-wrap items-center gap-1 pt-1">
                 <Store size={12} className="shrink-0" /> {storeName}
+                {(product.store_verified || store?.is_verified) && (
+                  <span className="inline-flex items-center gap-0.5 text-cyan-700 font-bold">
+                    <BadgeCheck size={12} /> Verificado
+                  </span>
+                )}
                 {province && (
                   <>
                     {" "}

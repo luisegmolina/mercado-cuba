@@ -139,6 +139,39 @@ const parsePagination = (req) => {
 const numOr = (v, dflt) =>
   v === undefined || v === null || v === "" ? dflt : Number(v);
 
+// Filtros de búsqueda de productos (?category, ?minCup, ?maxCup,
+// ?minUsd, ?maxUsd, ?ids=uuid,uuid). Devuelve { filters } o { error }.
+const parseProductFilters = (req) => {
+  const filters = {};
+  if (req.query.category && String(req.query.category).trim())
+    filters.category = String(req.query.category).trim();
+  for (const key of ["minCup", "maxCup", "minUsd", "maxUsd"]) {
+    if (req.query[key] !== undefined && req.query[key] !== "") {
+      const n = Number(req.query[key]);
+      if (!Number.isFinite(n) || n < 0)
+        return { error: `El filtro ${key} debe ser un número mayor o igual a 0` };
+      filters[key] = n;
+    }
+  }
+  if (filters.minCup !== undefined && filters.maxCup !== undefined && filters.minCup > filters.maxCup)
+    return { error: "El precio mínimo en CUP no puede ser mayor que el máximo" };
+  if (filters.minUsd !== undefined && filters.maxUsd !== undefined && filters.minUsd > filters.maxUsd)
+    return { error: "El precio mínimo en USD no puede ser mayor que el máximo" };
+  if (req.query.ids) {
+    const ids = String(req.query.ids)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (ids.length > 100)
+      return { error: "Máximo 100 productos por consulta" };
+    for (const id of ids)
+      if (!UUID_REGEX.test(id))
+        return { error: "Identificador de producto no válido" };
+    filters.ids = ids;
+  }
+  return { filters };
+};
+
 // --- AUDITORÍA ---
 // Escribe en audit_log. Si el registro falla, no rompe la operación:
 // se anota en consola y se sigue.
@@ -203,6 +236,67 @@ const initAdminBootstrap = async () => {
   }
 };
 initAdminBootstrap();
+
+// --- MIGRACIÓN AUTOMÁTICA DE ESQUEMA (idempotente, nunca tumba el arranque) ---
+// El backend aplica solo lo que falta cada vez que arranca (Render
+// redespliega con cada push a main): es la vía por la que los cambios
+// de esquema llegan a la base de Neon sin acceso manual. El mismo SQL
+// está en migrate-busqueda-favoritos-verificado.sql para el registro.
+// Cada sentencia va en su propio try/catch: si una falla se anota en
+// consola y el servidor sigue arrancando.
+const ensureSchema = async () => {
+  const statements = [
+    // Búsqueda por productos + confianza del vendedor + destacados (2026-11-15)
+    `ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE`,
+    `CREATE INDEX IF NOT EXISTS idx_stores_verified ON stores(is_verified)`,
+    `ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(50)`,
+    `ALTER TABLE products ADD COLUMN IF NOT EXISTS featured_until TIMESTAMPTZ`,
+    `CREATE INDEX IF NOT EXISTS idx_products_featured ON products(featured_until) WHERE featured_until IS NOT NULL`,
+    `CREATE TABLE IF NOT EXISTS featured_prices (
+       duration_days INTEGER PRIMARY KEY CHECK (duration_days IN (3, 7, 30)),
+       price_cup NUMERIC(12,2),
+       price_usd NUMERIC(12,2),
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+     )`,
+    `INSERT INTO featured_prices (duration_days) VALUES (3), (7), (30) ON CONFLICT (duration_days) DO NOTHING`,
+    // Limpieza de datos reales: 'Bebida ' (con espacio) es 'Bebidas';
+    // recorta espacios en todas las categorías.
+    `UPDATE products SET category = 'Bebidas' WHERE btrim(category) = 'Bebida'`,
+    `UPDATE products SET category = btrim(category) WHERE category IS NOT NULL AND category <> btrim(category)`,
+  ];
+  for (const sql of statements) {
+    try {
+      await pool.query(sql);
+    } catch (e) {
+      console.error("[SCHEMA] No se pudo aplicar:", e.message);
+    }
+  }
+};
+ensureSchema();
+
+// --- CATÁLOGO DE CATEGORÍAS Y DURACIONES DE DESTACADOS ---
+// Lista canónica en español para lo que se vende en Cuba. Es la misma
+// que sugiere el formulario del vendedor y la que ofrece el filtro de
+// búsqueda; si un producto trae una categoría fuera de la lista, el
+// filtro igual lo encuentra por texto (?q=).
+const PRODUCT_CATEGORIES = [
+  "Alimentos",
+  "Bebidas",
+  "Electrodomésticos",
+  "Celulares",
+  "Ropa y calzado",
+  "Hogar",
+  "Motos",
+  "Belleza",
+  "Salud",
+  "Ferretería",
+  "Juguetes",
+  "Otros",
+];
+// Duraciones de anuncio destacado, como los paquetes de Revolico.
+// Los precios NO están fijados: se configuran en featured_prices
+// (panel del súper admin); NULL = sin definir.
+const FEATURED_DURATIONS = [3, 7, 30];
 
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
@@ -323,7 +417,7 @@ const fetchProductsOfStore = async (storeId, onlyVisible = false) => {
     `SELECT p.*, COALESCE(json_agg(pi.url ORDER BY pi.position) FILTER (WHERE pi.url IS NOT NULL), '[]') AS images
      FROM products p LEFT JOIN product_images pi ON pi.product_id = p.id
      WHERE p.store_id = $1 ${onlyVisible ? "AND p.is_visible" : ""}
-     GROUP BY p.id ORDER BY p.created_at DESC`,
+     GROUP BY p.id ORDER BY (p.featured_until IS NOT NULL AND p.featured_until > now()) DESC, p.created_at DESC`,
     [storeId],
   );
   return r.rows;
@@ -331,7 +425,11 @@ const fetchProductsOfStore = async (storeId, onlyVisible = false) => {
 
 // Listado público de productos con conteo total y búsqueda por texto
 // (?q=). El ILIKE '%...%' usa los índices trigram (pg_trgm).
-const listPublicProducts = async ({ provinceId = null, municipalityId = null, limit, offset, q = null }) => {
+// Filtros: categoría (exacta, sin importar mayúsculas ni espacios),
+// rango de precio en CUP y en USD, y lista de ids (para rehidratar
+// favoritos guardados). Los destacados vigentes (featured_until > now())
+// salen primero; sin cron: la consulta misma filtra por la fecha.
+const listPublicProducts = async ({ provinceId = null, municipalityId = null, limit, offset, q = null, category = null, minCup = null, maxCup = null, minUsd = null, maxUsd = null, ids = null }) => {
   const where = [PUBLIC_STORE_CONDITION, "p.is_visible"];
   const params = [];
   if (provinceId) {
@@ -346,8 +444,32 @@ const listPublicProducts = async ({ provinceId = null, municipalityId = null, li
     params.push(q);
     const i = params.length;
     where.push(
-      `(p.name ILIKE '%' || $${i} || '%' OR s.name ILIKE '%' || $${i} || '%' OR p.category ILIKE '%' || $${i} || '%')`,
+      `(p.name ILIKE '%' || $${i} || '%' OR p.description ILIKE '%' || $${i} || '%' OR s.name ILIKE '%' || $${i} || '%' OR p.category ILIKE '%' || $${i} || '%')`,
     );
+  }
+  if (category) {
+    params.push(String(category).trim());
+    where.push(`btrim(p.category) ILIKE $${params.length}`);
+  }
+  if (minCup !== null && minCup !== undefined) {
+    params.push(minCup);
+    where.push(`p.price_cup >= $${params.length}`);
+  }
+  if (maxCup !== null && maxCup !== undefined) {
+    params.push(maxCup);
+    where.push(`p.price_cup <= $${params.length}`);
+  }
+  if (minUsd !== null && minUsd !== undefined) {
+    params.push(minUsd);
+    where.push(`p.price_usd >= $${params.length}`);
+  }
+  if (maxUsd !== null && maxUsd !== undefined) {
+    params.push(maxUsd);
+    where.push(`p.price_usd <= $${params.length}`);
+  }
+  if (ids && ids.length) {
+    params.push(ids);
+    where.push(`p.id = ANY($${params.length}::uuid[])`);
   }
   const whereSql = where.join(" AND ");
   const itemsParams = [...params, limit, offset];
@@ -355,7 +477,7 @@ const listPublicProducts = async ({ provinceId = null, municipalityId = null, li
   const oi = itemsParams.length;
   const items = await pool.query(
     `SELECT p.*, COALESCE(json_agg(pi.url ORDER BY pi.position) FILTER (WHERE pi.url IS NOT NULL), '[]') AS images,
-            s.name AS store_name, s.whatsapp AS store_whatsapp, s.slug AS store_slug, prov.name AS store_province, mun.name AS store_municipality
+            s.name AS store_name, s.whatsapp AS store_whatsapp, s.slug AS store_slug, s.is_verified AS store_verified, prov.name AS store_province, mun.name AS store_municipality
      FROM products p
      JOIN stores s ON p.store_id = s.id
      LEFT JOIN provinces prov ON s.province_id = prov.id
@@ -363,7 +485,7 @@ const listPublicProducts = async ({ provinceId = null, municipalityId = null, li
      LEFT JOIN product_images pi ON pi.product_id = p.id
      WHERE ${whereSql}
      GROUP BY p.id, s.id, prov.id, mun.id
-     ORDER BY p.created_at DESC LIMIT $${li} OFFSET $${oi}`,
+     ORDER BY (p.featured_until IS NOT NULL AND p.featured_until > now()) DESC, p.created_at DESC LIMIT $${li} OFFSET $${oi}`,
     itemsParams,
   );
   const total = await pool.query(
@@ -505,6 +627,7 @@ app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
 });
 
 // Endpoint para obtener la vitrina global (con conteo total y ?q=)
+// Filtros: ?category, ?minCup, ?maxCup, ?minUsd, ?maxUsd, ?ids, ?municipality
 app.get("/api/public/all-products", async (req, res, next) => {
   try {
     const { limit, offset } = parsePagination(req);
@@ -517,10 +640,31 @@ app.get("/api/public/all-products", async (req, res, next) => {
       : null;
     if (municipalityId && !UUID_REGEX.test(municipalityId))
       return res.status(400).json({ error: "Municipio no válido" });
-    const result = await listPublicProducts({ limit, offset, q, municipalityId });
+    const { filters, error } = parseProductFilters(req);
+    if (error) return res.status(400).json({ error });
+    const result = await listPublicProducts({ limit, offset, q, municipalityId, ...filters });
     res.json(result);
   } catch (err) {
     next(err);
+  }
+});
+
+// Categorías canónicas para el filtro de búsqueda (la misma lista que
+// ofrece el formulario del vendedor al publicar).
+app.get("/api/public/categories", (req, res) => {
+  res.json({ categories: PRODUCT_CATEGORIES });
+});
+
+// Precios configurados de los anuncios destacados (NULL = sin definir;
+// Luis fija los precios desde el panel del súper admin).
+app.get("/api/public/featured-prices", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT duration_days, price_cup, price_usd FROM featured_prices ORDER BY duration_days ASC`,
+    );
+    res.json({ prices: result.rows });
+  } catch (err) {
+    res.json({ prices: [] });
   }
 });
 
@@ -573,7 +717,7 @@ app.get("/api/public/landing", async (req, res, next) => {
 app.get("/api/public/stores", async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id, s.municipality_id, s.created_at,
+      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id, s.municipality_id, s.created_at, s.is_verified,
               p.name AS province_name, m.name AS municipality_name
        FROM stores s
        LEFT JOIN provinces p ON p.id = s.province_id
@@ -1474,7 +1618,7 @@ app.get("/api/admin/dashboard", authenticateToken, async (req, res, next) => {
     );
     const stores = await pool.query(
       `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id,
-              s.is_public, s.is_suspended, s.created_at,
+              s.is_public, s.is_suspended, s.is_verified, s.created_at,
               u.owner_name, u.whatsapp AS owner_whatsapp, u.must_reset_password,
               p.name AS province_name,
               gl.valid_until AS license_valid_until, gl.status AS license_status
@@ -1874,6 +2018,167 @@ app.put("/api/admin/store/:id/status", authenticateToken, async (req, res, next)
   }
 });
 
+// Sello "Vendedor verificado": solo el súper admin lo activa o lo quita.
+// Se muestra en la página de la tienda; no es una reseña ni una
+// calificación, solo que el admin confirmó quién es el vendedor.
+app.put("/api/admin/store/:id/verified", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  try {
+    const result = await pool.query(
+      "UPDATE stores SET is_verified = $1 WHERE id = $2 RETURNING id, name, is_verified",
+      [!!req.body.is_verified, req.params.id],
+    );
+    if (result.rowCount === 0)
+      return res.status(404).json({ error: "Tienda no encontrada" });
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: req.body.is_verified ? "store_verify" : "store_unverify",
+      target_type: "store",
+      target_id: result.rows[0].id,
+      details: { name: result.rows[0].name },
+    });
+    res.json({ success: true, is_verified: result.rows[0].is_verified });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- ANUNCIOS DESTACADOS ---
+// Sin pago en línea: el vendedor lo pide por WhatsApp (como las
+// licencias) y el súper admin lo activa aquí eligiendo la duración.
+// La vigencia es una fecha (featured_until): el producto deja de ser
+// destacado solo cuando vence, porque todas las consultas filtran por
+// featured_until > now(). No hay cron.
+
+// Productos destacados vigentes (para la pestaña Destacados del panel).
+app.get("/api/admin/featured", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  try {
+    const result = await pool.query(
+      `SELECT p.id, p.name, p.price_cup, p.price_usd, p.category, p.featured_until,
+              s.id AS store_id, s.name AS store_name, s.slug AS store_slug
+       FROM products p JOIN stores s ON s.id = p.store_id
+       WHERE p.featured_until > now()
+       ORDER BY p.featured_until ASC`,
+    );
+    res.json({ featured: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Buscar productos (por nombre o tienda) para activar un destacado.
+app.get("/api/admin/products/search", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  try {
+    const { limit } = parsePagination(req);
+    const q = req.query.q ? String(req.query.q).trim() : "";
+    if (!q) return res.json({ products: [] });
+    const result = await pool.query(
+      `SELECT p.id, p.name, p.price_cup, p.price_usd, p.category, p.is_visible, p.featured_until,
+              s.name AS store_name, s.slug AS store_slug
+       FROM products p JOIN stores s ON s.id = p.store_id
+       WHERE p.name ILIKE '%' || $1 || '%' OR s.name ILIKE '%' || $1 || '%'
+       ORDER BY p.created_at DESC LIMIT $2`,
+      [q, limit],
+    );
+    res.json({ products: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Activar (days 3/7/30) o quitar (days 0) un anuncio destacado.
+app.put("/api/admin/product/:id/featured", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  const days = Number(req.body.days);
+  if (![0, ...FEATURED_DURATIONS].includes(days))
+    return res
+      .status(400)
+      .json({ error: "La duración debe ser 0, 3, 7 o 30 días" });
+  try {
+    const check = await pool.query(
+      `SELECT p.id, p.name, s.name AS store_name FROM products p
+       JOIN stores s ON s.id = p.store_id WHERE p.id = $1`,
+      [req.params.id],
+    );
+    if (check.rows.length === 0)
+      return res.status(404).json({ error: "Producto no encontrado" });
+    const result = await pool.query(
+      days === 0
+        ? "UPDATE products SET featured_until = NULL WHERE id = $1 RETURNING id, featured_until"
+        : "UPDATE products SET featured_until = now() + ($1 || ' days')::interval WHERE id = $2 RETURNING id, featured_until",
+      days === 0 ? [req.params.id] : [String(days), req.params.id],
+    );
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: days === 0 ? "product_unfeature" : "product_feature",
+      target_type: "product",
+      target_id: result.rows[0].id,
+      details: {
+        name: check.rows[0].name,
+        store_name: check.rows[0].store_name,
+        days,
+      },
+    });
+    res.json({ success: true, featured_until: result.rows[0].featured_until });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Precios de los destacados por duración (los fija Luis; NULL = sin definir).
+app.put("/api/admin/featured-prices", authenticateToken, async (req, res, next) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  const prices = Array.isArray(req.body.prices) ? req.body.prices : [];
+  const clean = [];
+  for (const p of prices) {
+    const days = Number(p.duration_days);
+    if (!FEATURED_DURATIONS.includes(days)) continue;
+    const priceCup = p.price_cup === null || p.price_cup === "" ? null : Number(p.price_cup);
+    const priceUsd = p.price_usd === null || p.price_usd === "" ? null : Number(p.price_usd);
+    if ((priceCup !== null && (!Number.isFinite(priceCup) || priceCup < 0)) ||
+        (priceUsd !== null && (!Number.isFinite(priceUsd) || priceUsd < 0)))
+      return res
+        .status(400)
+        .json({ error: `Precio inválido para ${days} días` });
+    clean.push({ duration_days: days, price_cup: priceCup, price_usd: priceUsd });
+  }
+  if (clean.length === 0)
+    return res.status(400).json({ error: "Sin precios válidos" });
+  try {
+    for (const p of clean) {
+      await pool.query(
+        `INSERT INTO featured_prices (duration_days, price_cup, price_usd, updated_at)
+         VALUES ($1, $2, $3, now())
+         ON CONFLICT (duration_days) DO UPDATE SET price_cup = EXCLUDED.price_cup, price_usd = EXCLUDED.price_usd, updated_at = now()`,
+        [p.duration_days, p.price_cup, p.price_usd],
+      );
+    }
+    await logAudit({
+      actor_type: "admin",
+      actor_id: req.user.admin_id,
+      action: "featured_prices_update",
+      target_type: "admin",
+      target_id: req.user.admin_id,
+      details: { prices: clean },
+    });
+    const result = await pool.query(
+      `SELECT duration_days, price_cup, price_usd FROM featured_prices ORDER BY duration_days ASC`,
+    );
+    res.json({ prices: result.rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.delete("/api/admin/store/:id", authenticateToken, async (req, res, next) => {
   if (req.user.role !== "superadmin")
     return res.status(403).json({ error: "Admin" });
@@ -2208,12 +2513,15 @@ app.get("/api/public/products/province/:id", async (req, res, next) => {
       req.query.q && String(req.query.q).trim()
         ? String(req.query.q).trim()
         : null;
+    const { filters, error } = parseProductFilters(req);
+    if (error) return res.status(400).json({ error });
     const result = await listPublicProducts({
       provinceId: id,
       municipalityId,
       limit,
       offset,
       q,
+      ...filters,
     });
     res.json(result);
   } catch (err) {

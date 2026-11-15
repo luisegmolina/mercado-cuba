@@ -28,6 +28,13 @@ import {
   cleanName,
   useGoBack,
   useCloseDetail,
+  PRODUCT_CATEGORIES,
+  FEATURED_DURATIONS,
+  FavHeart,
+  FeaturedBadge,
+  VerifiedBadge,
+  isFeatured,
+  formatDateShort,
 } from "./shared";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
@@ -220,6 +227,8 @@ const AppProvider = ({ children }) => {
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [adminFeatured, setAdminFeatured] = useState([]);
+  const [featuredPrices, setFeaturedPrices] = useState([]);
   const [superAdminContact, setSuperAdminContact] = useState(
     FALLBACK_ADMIN_CONTACT
   );
@@ -737,6 +746,111 @@ const AppProvider = ({ children }) => {
     notify("Estado actualizado");
   };
 
+  // Verificar una tienda (sello "Vendedor verificado" en su página).
+  // Solo el súper admin lo activa o lo quita desde el panel.
+  const toggleStoreVerified = async (id, current) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/store/${id}/verified`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ is_verified: !current }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      fetchAdminData();
+      notify(!current ? "Tienda verificada" : "Verificación retirada");
+    } catch (e) {
+      notify(friendlyError(e), "error");
+    }
+  };
+
+  // Anuncios destacados: el vendedor lo pide por WhatsApp y el súper
+  // admin lo activa aquí eligiendo la duración (3, 7 o 30 días). La
+  // vigencia es una fecha (featured_until): el producto deja de ser
+  // destacado solo cuando vence, sin cron.
+  const fetchAdminFeatured = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/featured`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminFeatured(data.featured || []);
+      }
+    } catch (e) {}
+  };
+
+  const activateFeatured = async (productId, days) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/admin/product/${productId}/featured`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+          body: JSON.stringify({ days }),
+        },
+      );
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      const data = await res.json();
+      fetchAdminFeatured();
+      notify(
+        days === 0
+          ? "Destacado retirado"
+          : `Destacado activado hasta ${new Date(data.featured_until).toLocaleDateString("es-ES")}`,
+      );
+      return true;
+    } catch (e) {
+      notify(friendlyError(e), "error");
+      return false;
+    }
+  };
+
+  // Precios de los destacados por duración (NULL = sin definir; Luis los
+  // fija desde el panel). La lectura es pública; la escritura, solo admin.
+  const fetchFeaturedPrices = async () => {
+    try {
+      const res = await fetch(`${API_URL}/public/featured-prices`);
+      if (res.ok) {
+        const data = await res.json();
+        setFeaturedPrices(data.prices || []);
+        return data.prices || [];
+      }
+    } catch (e) {}
+    return [];
+  };
+
+  const saveFeaturedPrices = async (prices) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/featured-prices`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ prices }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      const data = await res.json();
+      setFeaturedPrices(data.prices || []);
+      notify("Precios de destacados guardados");
+      return true;
+    } catch (e) {
+      notify(friendlyError(e), "error");
+      return false;
+    }
+  };
+
+  // Buscar productos (para activar un destacado por nombre o tienda).
+  const adminSearchProducts = async (q) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/admin/products/search?q=${encodeURIComponent(q)}`,
+        { headers: authHeaders() },
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.products || [];
+    } catch (e) {
+      return [];
+    }
+  };
+
   const deleteStore = async (id) => {
     if (
       !window.confirm(
@@ -923,6 +1037,14 @@ const AppProvider = ({ children }) => {
         adminResetUserPass,
         generateCode,
         toggleStore,
+        toggleStoreVerified,
+        adminFeatured,
+        fetchAdminFeatured,
+        activateFeatured,
+        featuredPrices,
+        fetchFeaturedPrices,
+        saveFeaturedPrices,
+        adminSearchProducts,
         deleteStore,
         updateAdminPass,
         adminResetStorePass,
@@ -1591,10 +1713,10 @@ const LandingPage = () => {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-3">
               {featured.map((p) => (
-                <button
+                <div
                   key={p.id}
                   onClick={() => openDetail(p)}
-                  className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
+                  className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98] cursor-pointer"
                 >
                   <div className="aspect-square bg-sky-50 overflow-hidden relative">
                     <SafeImage
@@ -1602,11 +1724,15 @@ const LandingPage = () => {
                       alt={cleanName(p.name)}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    {Number(p.stock) === 0 && (
-                      <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
-                        Agotado
-                      </span>
-                    )}
+                    <FavHeart productId={p.id} />
+                    <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                      {isFeatured(p) && <FeaturedBadge />}
+                      {Number(p.stock) === 0 && (
+                        <span className="bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
+                          Agotado
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="p-3 sm:p-4">
                     <p className="text-sm font-bold text-slate-900 line-clamp-2">
@@ -1619,10 +1745,16 @@ const LandingPage = () => {
                       <p className="text-[11px] text-slate-500 truncate mt-1 flex items-center gap-1">
                         <Store size={11} className="shrink-0" />{" "}
                         {p.store_name}
+                        {p.store_verified && (
+                          <BadgeCheck
+                            size={11}
+                            className="text-cyan-600 shrink-0"
+                          />
+                        )}
                       </p>
                     )}
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -2026,30 +2158,43 @@ const StoreFrontend = () => {
           </div>
         </div>
       </div>
-      {(store.description || store.owner_name || locationName) && (
-        <div className="px-4 pt-4">
-          <Card className="p-4 space-y-1">
-            {store.description && (
-              <p className="text-sm text-slate-600">{store.description}</p>
+      {/* Confianza del vendedor: desde cuándo, cuántos productos,
+          dónde está y si el súper admin lo verificó. */}
+      <div className="px-4 pt-4">
+        <Card className="p-4 space-y-1">
+          {store.is_verified && (
+            <p>
+              <VerifiedBadge />
+            </p>
+          )}
+          <p className="text-xs text-slate-500">
+            {store.created_at && (
+              <>Tienda desde {formatDateShort(store.created_at)} · </>
             )}
-            {store.owner_name && (
-              <p className="text-xs text-slate-500">
-                Dueño: {store.owner_name}
-              </p>
-            )}
-            {locationName && (
-              <p className="text-xs text-slate-500 flex items-center gap-1">
-                <MapPin size={12} /> {locationName}
-              </p>
-            )}
-            {store.whatsapp && (
-              <p className="text-xs text-slate-500">
-                WhatsApp: {formatPhone(store.whatsapp)}
-              </p>
-            )}
-          </Card>
-        </div>
-      )}
+            {visibleProducts.length}{" "}
+            {visibleProducts.length === 1 ? "producto" : "productos"}{" "}
+            publicados
+          </p>
+          {store.description && (
+            <p className="text-sm text-slate-600">{store.description}</p>
+          )}
+          {store.owner_name && (
+            <p className="text-xs text-slate-500">
+              Dueño: {store.owner_name}
+            </p>
+          )}
+          {locationName && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <MapPin size={12} /> {locationName}
+            </p>
+          )}
+          {store.whatsapp && (
+            <p className="text-xs text-slate-500">
+              WhatsApp: {formatPhone(store.whatsapp)}
+            </p>
+          )}
+        </Card>
+      </div>
       {store.whatsapp && (
         <div className="px-4 pt-3">
           <a
@@ -2096,11 +2241,15 @@ const StoreFrontend = () => {
           >
             <div className="relative">
               <ImageGallery imagesStr={p.images ?? p.image_url} />
-              {isOut && (
-                <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full z-10">
-                  Agotado
-                </span>
-              )}
+              <FavHeart productId={p.id} />
+              <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                {isFeatured(p) && <FeaturedBadge />}
+                {isOut && (
+                  <span className="bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
+                    Agotado
+                  </span>
+                )}
+              </div>
             </div>
             <div className="p-3 flex-1 flex flex-col">
               <h3 className="text-sm font-bold text-slate-900 line-clamp-2 mb-2">
@@ -3080,27 +3229,42 @@ const VendorDashboard = () => {
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <Input
-                  label="Categoría"
-                  value={formP.category || ""}
-                  list="categorias-sugeridas"
-                  placeholder="Ej.: Alimentos"
-                  onChange={(e) =>
-                    setFormP({ ...formP, category: e.target.value })
-                  }
-                />
-                <datalist id="categorias-sugeridas">
-                  <option value="Alimentos" />
-                  <option value="Electrodomésticos" />
-                  <option value="Celulares" />
-                  <option value="Ropa y calzado" />
-                  <option value="Hogar" />
-                  <option value="Motos" />
-                  <option value="Belleza" />
-                  <option value="Salud" />
-                  <option value="Ferretería" />
-                  <option value="Juguetes" />
-                </datalist>
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">
+                    Categoría
+                  </label>
+                  <select
+                    value={
+                      PRODUCT_CATEGORIES.includes(formP.category || "")
+                        ? formP.category
+                        : formP.category
+                          ? "__otra__"
+                          : ""
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormP({
+                        ...formP,
+                        category:
+                          v === "__otra__" ? formP.category || "" : v,
+                      });
+                    }}
+                    className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all appearance-none"
+                  >
+                    <option value="">Sin categoría</option>
+                    {PRODUCT_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    {formP.category &&
+                      !PRODUCT_CATEGORIES.includes(formP.category) && (
+                        <option value="__otra__">
+                          {formP.category} (actual)
+                        </option>
+                      )}
+                  </select>
+                </div>
               </div>
               <div className="flex-1">
                 <Input
@@ -3182,6 +3346,11 @@ const AUDIT_ACTION_LABELS = {
   license_grant: "Licencia concedida",
   store_suspend: "Tienda suspendida",
   store_unsuspend: "Tienda reactivada",
+  store_verify: "Tienda verificada",
+  store_unverify: "Verificación retirada",
+  featured_activate: "Destacado activado",
+  featured_remove: "Destacado retirado",
+  featured_prices_update: "Precios de destacados actualizados",
   store_delete: "Tienda eliminada",
   user_delete: "Usuario eliminado",
   user_password_reset: "Clave de vendedor reseteada",
@@ -3209,6 +3378,14 @@ const SuperAdminPanel = () => {
     logout,
     generateCode,
     toggleStore,
+    toggleStoreVerified,
+    adminFeatured,
+    fetchAdminFeatured,
+    activateFeatured,
+    featuredPrices,
+    fetchFeaturedPrices,
+    saveFeaturedPrices,
+    adminSearchProducts,
     deleteStore,
     updateAdminPass,
     deleteCode,
@@ -3245,6 +3422,74 @@ const SuperAdminPanel = () => {
     if (tab === "users") fetchAdminUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Destacados: productos vigentes, buscador para activar uno nuevo y
+  // precios por duración (NULL = sin definir; los fija Luis).
+  const [featuredQuery, setFeaturedQuery] = useState("");
+  const [featuredResults, setFeaturedResults] = useState([]);
+  const [featuredSearching, setFeaturedSearching] = useState(false);
+  const [featuredDays, setFeaturedDays] = useState(7);
+  const [pricesForm, setPricesForm] = useState(null);
+
+  // Al abrir la pestaña Destacados: carga los vigentes y los precios
+  // (el formulario se llena con lo que devuelve el backend).
+  useEffect(() => {
+    if (tab !== "featured") return;
+    fetchAdminFeatured();
+    fetchFeaturedPrices().then((prices) => {
+      const next = {
+        3: { cup: "", usd: "" },
+        7: { cup: "", usd: "" },
+        30: { cup: "", usd: "" },
+      };
+      for (const row of prices || []) {
+        if (next[row.duration_days]) {
+          next[row.duration_days] = {
+            cup:
+              row.price_cup === null || row.price_cup === undefined
+                ? ""
+                : String(row.price_cup),
+            usd:
+              row.price_usd === null || row.price_usd === undefined
+                ? ""
+                : String(row.price_usd),
+          };
+        }
+      }
+      setPricesForm(next);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const handleFeaturedSearch = async () => {
+    const q = featuredQuery.trim();
+    if (q.length < 2) {
+      setFeaturedResults([]);
+      return;
+    }
+    setFeaturedSearching(true);
+    const results = await adminSearchProducts(q);
+    setFeaturedResults(results);
+    setFeaturedSearching(false);
+  };
+
+  const handleActivateFeatured = async (productId) => {
+    const ok = await activateFeatured(productId, featuredDays);
+    if (ok)
+      setFeaturedResults((r) => r.filter((p) => p.id !== productId));
+  };
+
+  const handleSavePrices = async () => {
+    if (!pricesForm) return;
+    const prices = FEATURED_DURATIONS.map((d) => ({
+      duration_days: d,
+      price_cup:
+        pricesForm[d].cup === "" ? null : Number(pricesForm[d].cup),
+      price_usd:
+        pricesForm[d].usd === "" ? null : Number(pricesForm[d].usd),
+    }));
+    await saveFeaturedPrices(prices);
+  };
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [grantLicenseId, setGrantLicenseId] = useState("");
   const [adminContact, setAdminContact] = useState(superAdminContact);
@@ -3511,7 +3756,7 @@ const SuperAdminPanel = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {["stores", "users", "codes", "rates", "loc", "audit", "sec"].map((t) => (
+          {["stores", "featured", "users", "codes", "rates", "loc", "audit", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -3519,17 +3764,19 @@ const SuperAdminPanel = () => {
             >
               {t === "stores"
                 ? "Tiendas"
-                : t === "users"
-                  ? "Usuarios"
-                  : t === "codes"
-                  ? "Licencias"
-                  : t === "rates"
-                    ? "Tasas"
-                    : t === "loc"
-                      ? "Ubicación"
-                      : t === "audit"
-                        ? "Auditoría"
-                        : "Seguridad"}
+                : t === "featured"
+                  ? "Destacados"
+                  : t === "users"
+                    ? "Usuarios"
+                    : t === "codes"
+                    ? "Licencias"
+                    : t === "rates"
+                      ? "Tasas"
+                      : t === "loc"
+                        ? "Ubicación"
+                        : t === "audit"
+                          ? "Auditoría"
+                          : "Seguridad"}
             </button>
           ))}
         </div>
@@ -3738,6 +3985,11 @@ const SuperAdminPanel = () => {
                   <div className="flex-1 min-w-0 w-full">
                     <h4 className="font-bold text-slate-800 text-lg">
                       {s.name}
+                      {s.is_verified && (
+                        <span className="ml-2 text-[11px] font-bold text-cyan-700 bg-cyan-600/10 border border-cyan-600/20 px-2 py-0.5 rounded-full align-middle">
+                          verificada
+                        </span>
+                      )}
                       {!s.is_public && (
                         <span className="ml-2 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full align-middle">
                           oculta
@@ -3779,6 +4031,21 @@ const SuperAdminPanel = () => {
                       className="p-2.5 bg-cyan-600/10 text-cyan-700 rounded-xl hover:bg-cyan-600/20 transition-colors"
                     >
                       <Info size={18} />
+                    </button>
+                    <button
+                      onClick={() => toggleStoreVerified(s.id, s.is_verified)}
+                      title={
+                        s.is_verified
+                          ? "Quitar verificación"
+                          : "Verificar tienda"
+                      }
+                      className={`p-2.5 rounded-xl transition-colors border ${
+                        s.is_verified
+                          ? "bg-cyan-600 text-white border-cyan-600"
+                          : "bg-white text-slate-500 hover:text-slate-800 border-slate-200"
+                      }`}
+                    >
+                      <BadgeCheck size={18} />
                     </button>
                     <button
                       onClick={() => toggleStore(s.id, s.is_suspended)}
@@ -3828,6 +4095,182 @@ const SuperAdminPanel = () => {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === "featured" && (
+          <div className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <h3 className="font-bold text-slate-900">
+                Anuncios destacados
+              </h3>
+              <p className="text-xs text-slate-500">
+                Un producto destacado aparece primero en su categoría y en
+                los resultados de búsqueda, con la marca "Destacado". El
+                vendedor lo pide por WhatsApp y tú lo activas aquí eligiendo
+                la duración; deja de ser destacado solo cuando vence la
+                fecha.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Buscar producto por nombre o tienda..."
+                  value={featuredQuery}
+                  onChange={(e) => setFeaturedQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleFeaturedSearch();
+                    }
+                  }}
+                  className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+                />
+                <button
+                  onClick={handleFeaturedSearch}
+                  className="bg-cyan-600 text-white px-4 py-3 rounded-2xl text-sm font-bold hover:bg-cyan-500 transition-all shrink-0"
+                >
+                  Buscar
+                </button>
+              </div>
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="text-xs font-bold text-slate-500">
+                  Duración:
+                </span>
+                {FEATURED_DURATIONS.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setFeaturedDays(d)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                      featuredDays === d
+                        ? "bg-amber-500 text-white"
+                        : "bg-white text-slate-500 border border-slate-200"
+                    }`}
+                  >
+                    {d} días
+                  </button>
+                ))}
+              </div>
+              {featuredSearching && (
+                <p className="text-xs text-slate-500">Buscando...</p>
+              )}
+              {featuredResults.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 bg-sky-50 border border-slate-200 rounded-xl p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {cleanName(p.name)}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {p.store_name} · {p.category || "Sin categoría"} ·{" "}
+                      {priceLabel(p)}
+                    </p>
+                    {p.featured_until && isFeatured(p) && (
+                      <p className="text-xs text-amber-600 font-bold">
+                        Destacado hasta{" "}
+                        {new Date(p.featured_until).toLocaleDateString(
+                          "es-ES",
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleActivateFeatured(p.id)}
+                    className="shrink-0 bg-amber-500 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-400 transition-all"
+                  >
+                    Destacar {featuredDays} días
+                  </button>
+                </div>
+              ))}
+            </Card>
+
+            <Card className="p-4 space-y-2">
+              <h3 className="font-bold text-slate-900">
+                Destacados vigentes ({adminFeatured.length})
+              </h3>
+              {adminFeatured.length === 0 && (
+                <p className="text-xs text-slate-500">
+                  Ningún producto destacado ahora mismo.
+                </p>
+              )}
+              {adminFeatured.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 bg-sky-50 border border-slate-200 rounded-xl p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {cleanName(p.name)}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {p.store_name} · {p.category || "Sin categoría"} ·{" "}
+                      {priceLabel(p)}
+                    </p>
+                    <p className="text-xs text-amber-600 font-bold">
+                      Hasta{" "}
+                      {new Date(p.featured_until).toLocaleDateString("es-ES")}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => activateFeatured(p.id, 0)}
+                    className="shrink-0 bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-sky-100 transition-all"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h3 className="font-bold text-slate-900">
+                Precios por duración
+              </h3>
+              <p className="text-xs text-slate-500">
+                Todavía sin definir: deja el campo vacío para no fijar
+                precio. Se le cobra al vendedor por WhatsApp, como las
+                licencias.
+              </p>
+              {pricesForm &&
+                FEATURED_DURATIONS.map((d) => (
+                  <div key={d} className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 w-14 shrink-0">
+                      {d} días
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="CUP"
+                      value={pricesForm[d].cup}
+                      onChange={(e) =>
+                        setPricesForm({
+                          ...pricesForm,
+                          [d]: { ...pricesForm[d], cup: e.target.value },
+                        })
+                      }
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="USD"
+                      value={pricesForm[d].usd}
+                      onChange={(e) =>
+                        setPricesForm({
+                          ...pricesForm,
+                          [d]: { ...pricesForm[d], usd: e.target.value },
+                        })
+                      }
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                ))}
+              <Button onClick={handleSavePrices} className="w-full">
+                Guardar precios
+              </Button>
+            </Card>
           </div>
         )}
 
@@ -4295,6 +4738,24 @@ const SuperAdminPanel = () => {
             <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-widest">
               {selStore.name}
             </h3>
+            <button
+              onClick={async () => {
+                await toggleStoreVerified(selStore.id, selStore.is_verified);
+                setSelStore((s) =>
+                  s ? { ...s, is_verified: !s.is_verified } : s,
+                );
+              }}
+              className={`w-full mb-6 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                selStore.is_verified
+                  ? "bg-cyan-600 text-white"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-sky-100"
+              }`}
+            >
+              <BadgeCheck size={18} />
+              {selStore.is_verified
+                ? "Vendedor verificado (toca para quitar)"
+                : "Marcar como vendedor verificado"}
+            </button>
             <Input
               label="Nuevo WhatsApp"
               value={editWhatsapp}
