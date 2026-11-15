@@ -370,8 +370,14 @@ export const PhotoUploader = ({
       });
       await handleFiles([file]);
     } catch (e) {
+      const msg = String((e && e.message) || "");
       // Cerrar la cámara sin tomar foto no es un error.
-      if (/cancel/i.test(String((e && e.message) || ""))) return;
+      if (/cancel/i.test(msg)) return;
+      // APK viejo sin el plugin instalado: vuelve al input (galería).
+      if (/not implemented/i.test(msg)) {
+        cameraRef.current?.click();
+        return;
+      }
       setError("No se pudo abrir la cámara. Inténtalo de nuevo.");
     }
   };
