@@ -1250,6 +1250,21 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-[#F2FBFC]">
+      {/* --- AVISO: licencias gratis por tiempo limitado --- */}
+      {licenseUrl ? (
+        <a
+          href={licenseUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block w-full bg-emerald-600 text-white text-center px-4 py-3 text-base sm:text-lg font-extrabold hover:bg-emerald-500 transition-colors"
+        >
+          Todas las licencias son gratis por tiempo limitado 😉
+        </a>
+      ) : (
+        <div className="w-full bg-emerald-600 text-white text-center px-4 py-3 text-base sm:text-lg font-extrabold">
+          Todas las licencias son gratis por tiempo limitado 😉
+        </div>
+      )}
       {/* --- HERO con foto de La Habana --- */}
       <div className="relative overflow-hidden">
         <img
