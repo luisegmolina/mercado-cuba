@@ -12,6 +12,12 @@ import {
   ImagePlus,
   Loader2,
 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import {
+  Camera as CapacitorCamera,
+  CameraResultType,
+  CameraSource,
+} from "@capacitor/camera";
 
 // Foto de Cuba para el hero y como fondo por defecto de las tiendas:
 // La Habana desde el Malecón (Wikimedia Commons, licencia libre).
@@ -291,6 +297,9 @@ export const SafeImage = ({
 // Nota: en los navegadores del móvil `capture` se ignora cuando el input
 // es `multiple`, por eso la cámara y la galería son dos botones separados
 // en vez de un solo input con capture+multiple.
+// OJO: en la app instalada el WebView IGNORA `capture` siempre (aunque el
+// input no sea multiple) y abre la galería; por eso "Tomar foto" usa la
+// cámara nativa del plugin en la app y el input solo en la web.
 export const PhotoUploader = ({
   images = [],
   onChange,
@@ -338,6 +347,35 @@ export const PhotoUploader = ({
     onChange(images.filter((_, idx) => idx !== i));
   };
 
+  // "Tomar foto": en la app instalada abre la cámara nativa (el WebView
+  // ignora el capture del input y abriría la galería); en la web usa el
+  // input con capture, que ahí sí abre la cámara.
+  const takePhoto = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      cameraRef.current?.click();
+      return;
+    }
+    try {
+      const photo = await CapacitorCamera.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+        saveToGallery: false,
+      });
+      if (!photo.dataUrl) return;
+      const blob = await (await fetch(photo.dataUrl)).blob();
+      const file = new File([blob], `foto-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
+      await handleFiles([file]);
+    } catch (e) {
+      // Cerrar la cámara sin tomar foto no es un error.
+      if (/cancel/i.test(String((e && e.message) || ""))) return;
+      setError("No se pudo abrir la cámara. Inténtalo de nuevo.");
+    }
+  };
+
   const disabled = uploading > 0 || images.length >= limit;
 
   return (
@@ -349,7 +387,7 @@ export const PhotoUploader = ({
         <button
           type="button"
           disabled={disabled}
-          onClick={() => cameraRef.current?.click()}
+          onClick={takePhoto}
           className="flex-1 bg-cyan-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-cyan-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
           <Camera size={18} /> Tomar foto
