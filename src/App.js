@@ -5,6 +5,8 @@ import React, {
   useContext,
   //use,
 } from "react";
+import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import GlobalMarketplace from "./Marketplace"; // Asegúrate de que el nombre coincida
 import "./index.css";
 import {
@@ -4428,6 +4430,24 @@ const AppRoutes = () => {
 
 // --- PUNTO DE ENTRADA PRINCIPAL ---
 export default function App() {
+  // Botón/gesto atrás de Android en la app instalada: sin esto, Capacitor
+  // cierra la app desde cualquier pantalla. Con el listener, atrás
+  // retrocede dentro de la web y solo sale de la app en la portada.
+  // En la web no hace nada (el navegador ya maneja su propio atrás).
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let removeListener;
+    CapacitorApp.addListener("backButton", ({ canGoBack }) => {
+      if (canGoBack) window.history.back();
+      else CapacitorApp.exitApp();
+    }).then((handle) => {
+      removeListener = () => handle.remove();
+    });
+    return () => {
+      if (removeListener) removeListener();
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <ScrollToTop />
