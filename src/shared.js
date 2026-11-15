@@ -24,6 +24,33 @@ import {
 export const CUBA_HERO =
   "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Havana_view.jpg/960px-Havana_view.jpg";
 
+// Fotos del hero de la portada: una al azar en cada visita.
+// Todas de Wikimedia Commons (licencia libre: CC0, CC BY o CC BY-SA);
+// los archivos viven en public/hero-*.jpg y se sirven desde la web.
+export const HERO_IMAGES = [
+  "/hero-habana.jpg",
+  "/hero-malecon.jpg",
+  "/hero-trinidad.jpg",
+  "/hero-vinales.jpg",
+  "/hero-varadero.jpg",
+  "/hero-capitolio.jpg",
+];
+
+// Elige una foto al azar, distinta a la de la visita anterior (si la hay).
+export const pickRandomHero = () => {
+  let prev = -1;
+  try {
+    prev = Number(sessionStorage.getItem("heroIdx"));
+  } catch {}
+  let idx = Math.floor(Math.random() * HERO_IMAGES.length);
+  if (HERO_IMAGES.length > 1 && idx === prev)
+    idx = (idx + 1) % HERO_IMAGES.length;
+  try {
+    sessionStorage.setItem("heroIdx", String(idx));
+  } catch {}
+  return HERO_IMAGES[idx];
+};
+
 // --- CLOUDINARY (subida de fotos desde el celular / cámara) ---
 // El vendedor sube la foto desde el teléfono y Cloudinary devuelve el
 // enlace, que es lo que se guarda en la base (product_images). La subida

@@ -21,6 +21,7 @@ import {
   ProductDetailModal,
   PhotoUploader,
   CUBA_HERO,
+  pickRandomHero,
   firstProductImage,
   cleanName,
   useGoBack,
@@ -1157,6 +1158,9 @@ const LandingPage = () => {
   // Buscador y "Cargar más" de tiendas (12 por tanda).
   const [storeQuery, setStoreQuery] = useState("");
   const [storesVisible, setStoresVisible] = useState(12);
+  // Foto del hero: una al azar en cada visita (se elige una sola vez al
+  // montar la portada; no cambia mientras navegas dentro de la web).
+  const [heroImage] = useState(pickRandomHero);
 
   const loadLandingData = async () => {
     setStoresError(false);
@@ -1265,11 +1269,11 @@ const LandingPage = () => {
           Todas las licencias son gratis por tiempo limitado 😉
         </div>
       )}
-      {/* --- HERO con foto de La Habana --- */}
+      {/* --- HERO con foto de Cuba al azar en cada visita --- */}
       <div className="relative overflow-hidden">
         <img
-          src={CUBA_HERO}
-          alt="La Habana desde el Malecón, Cuba"
+          src={heroImage}
+          alt="Cuba"
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-sky-950/75 via-sky-900/45 to-[#F2FBFC]" />
@@ -1794,6 +1798,18 @@ const LandingPage = () => {
         <footer className="text-center space-y-2 pt-6 pb-4 border-t border-sky-100">
           <p className="text-xs text-slate-500 font-bold">
             {APP_NAME} — de cubanos para cubanos 🇨🇺
+          </p>
+          <p className="text-xs text-slate-400">
+            Fotos de portada:{" "}
+            <a
+              href="https://commons.wikimedia.org/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-slate-500"
+            >
+              Wikimedia Commons
+            </a>{" "}
+            (licencia libre)
           </p>
           {superAdminContact ? (
             <a
