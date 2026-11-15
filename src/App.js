@@ -3382,7 +3382,6 @@ const SuperAdminPanel = () => {
     adminFeatured,
     fetchAdminFeatured,
     activateFeatured,
-    featuredPrices,
     fetchFeaturedPrices,
     saveFeaturedPrices,
     adminSearchProducts,
