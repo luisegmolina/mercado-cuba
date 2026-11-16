@@ -425,7 +425,7 @@ const AppProvider = ({ children }) => {
         if (data.must_reset_password) {
           setNeedsPassword({ whatsapp: normalizePhone(whatsapp) });
           notify("Tu cuenta no tiene contraseña. Pídele al administrador que te ponga una.", "error");
-          return;
+          return "Tu cuenta no tiene contraseña. Pídele al administrador que te ponga una.";
         }
         throw new Error(data.error || "Error en el servidor");
       }
@@ -439,8 +439,11 @@ const AppProvider = ({ children }) => {
       setMyStore(data.store || null);
       setMyProducts(Array.isArray(data.products) ? data.products : []);
       notify(`Bienvenido, ${data.store ? data.store.name : "vendedor"}`);
+      return null;
     } catch (err) {
-      notify(friendlyError(err), "error");
+      const msg = friendlyError(err);
+      notify(msg, "error");
+      return msg;
     } finally {
       setLoading(false);
     }
@@ -471,8 +474,11 @@ const AppProvider = ({ children }) => {
       setMyStore(resp.store);
       setMyProducts([]);
       notify("¡Tienda creada con éxito!");
+      return null;
     } catch (err) {
-      notify(friendlyError(err), "error");
+      const msg = friendlyError(err);
+      notify(msg, "error");
+      return msg;
     } finally {
       setLoading(false);
     }
@@ -621,8 +627,11 @@ const AppProvider = ({ children }) => {
       setCurrentUser({ role: "superadmin", name: "SuperAdmin" });
       fetchAdminData(data.token);
       notify("Modo Admin activado");
+      return null;
     } catch (err) {
-      notify(friendlyError(err), "error");
+      const msg = friendlyError(err);
+      notify(msg, "error");
+      return msg;
     } finally {
       setLoading(false);
     }
@@ -2100,7 +2109,13 @@ const LandingPage = () => {
           ) : (
             <p className="text-xs text-slate-400">Cargando contacto...</p>
           )}
-          <p>
+          <p className="space-x-3">
+            <Link
+              to="/privacidad"
+              className="text-xs text-slate-400 hover:text-slate-500"
+            >
+              Privacidad
+            </Link>
             <Link
               to="/admin/login"
               className="text-xs text-slate-400 hover:text-slate-500"
@@ -2595,23 +2610,34 @@ const AuthScreen = ({ mode }) => {
     name: "",
     owner: "",
   });
+  // Error de autenticación visible y fijo en el formulario: el toast solo
+  // dura ~3 s y el fallo de login pasaba desapercibido.
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     if (currentUser?.role === "vendor") navigate("/dashboard");
     if (currentUser?.role === "superadmin") navigate("/admin/panel");
   }, [currentUser, navigate]);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (currMode === "login") loginStore(form.whatsapp, form.password);
+    setAuthError(null);
+    let err = null;
+    if (currMode === "login") err = await loginStore(form.whatsapp, form.password);
     else if (currMode === "register")
-      registerStore(
+      err = await registerStore(
         { name: form.name, whatsapp: form.whatsapp, ownerName: form.owner },
         form.code,
         form.password,
       );
-    else loginSuperAdmin(form.password);
+    else err = await loginSuperAdmin(form.password);
+    if (err) setAuthError(err);
   };
+
+  // Al teclear de nuevo, el error viejo desaparece.
+  useEffect(() => {
+    setAuthError(null);
+  }, [form]);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -2687,6 +2713,14 @@ const AuthScreen = ({ mode }) => {
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
+            {authError && (
+              <p
+                role="alert"
+                className="text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3"
+              >
+                {authError}
+              </p>
+            )}
             <Button type="submit" className="w-full py-4 text-base uppercase">
               {currMode === "register" ? "Crear Mi Tienda" : "Entrar"}
             </Button>
@@ -5183,13 +5217,26 @@ const NotFoundPage = () => {
   );
 };
 
+// --- POLÍTICA DE PRIVACIDAD ---
+// La política vive como página estática en public/privacidad.html (la
+// misma URL que se declaró en Play Console). /privacidad redirige ahí:
+// sin esta ruta el router lo trataba como slug de tienda ("Tienda no
+// encontrada"). Se usa navegación real del navegador porque
+// /privacidad.html no es una ruta de React.
+const PrivacyRedirect = () => {
+  useEffect(() => {
+    window.location.replace("/privacidad.html");
+  }, []);
+  return null;
+};
+
 // --- CONFIGURACIÓN DE RUTAS ---
 const AppRoutes = () => {
   const { pathname } = useLocation();
   // La vista de tienda (/:slug) es independiente del mercado: sin
   // ticker de tasas ni cabecera del mercado. Cualquier ruta de un solo
   // segmento que no sea una ruta conocida es un slug de tienda.
-  const KNOWN_ROUTES = ["login", "register", "vendedor", "dashboard", "explorar"];
+  const KNOWN_ROUTES = ["login", "register", "vendedor", "dashboard", "explorar", "privacidad"];
   const segments = pathname.split("/").filter(Boolean);
   const isStoreRoute =
     segments.length === 1 && !KNOWN_ROUTES.includes(segments[0]);
@@ -5204,6 +5251,7 @@ const AppRoutes = () => {
       <Route path="/admin/login" element={<AuthScreen mode="admin" />} />
       <Route path="/dashboard" element={<VendorDashboard />} />
       <Route path="/admin/panel" element={<SuperAdminPanel />} />
+      <Route path="/privacidad" element={<PrivacyRedirect />} />
       <Route path="/:slug" element={<StoreFrontend />} />
       <Route path="/explorar" element={<GlobalMarketplace />} />
       <Route path="*" element={<NotFoundPage />} />

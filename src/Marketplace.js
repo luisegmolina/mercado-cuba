@@ -102,6 +102,10 @@ const GlobalMarketplace = () => {
   // Para no pedir la primera página de productos dos veces en el mismo
   // arranque (el efecto de provincia y el de vista corren juntos).
   const productsKeyRef = useRef("");
+  // Cancela la petición de productos anterior: sin esto, con el backend
+  // lento una respuesta vieja puede llegar después y pisar los filtros
+  // nuevos (la categoría o el precio mostraban productos que no tocaban).
+  const productsAbortRef = useRef(null);
 
   // Cambia parámetros de la URL. push=true (por defecto) crea un paso del
   // historial (vista nueva); push=false reemplaza (filtros, no añaden pasos).
@@ -173,7 +177,10 @@ const GlobalMarketplace = () => {
         province.id === "all"
           ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}${cParam}${priceParam}`
           : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}${cParam}${priceParam}`;
-      const res = await fetch(url);
+      if (productsAbortRef.current) productsAbortRef.current.abort();
+      const ctrl = new AbortController();
+      productsAbortRef.current = ctrl;
+      const res = await fetch(url, { signal: ctrl.signal });
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
       const items = Array.isArray(data) ? data : data.items || [];
@@ -191,6 +198,9 @@ const GlobalMarketplace = () => {
       );
       setOffset(startOffset + items.length);
     } catch (err) {
+      // Petición cancelada por una más nueva: no es un error, la lista
+      // vigente es la de la petición que sigue en curso.
+      if (err?.name === "AbortError") return;
       console.error(err);
       if (!append) setProducts([]);
       setLoadError("products");
