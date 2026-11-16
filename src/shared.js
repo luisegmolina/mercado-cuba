@@ -14,6 +14,7 @@ import {
   Heart,
   Star,
   BadgeCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -875,6 +876,94 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               )}
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal de confirmación propio: sustituye a los diálogos nativos del
+// navegador (window.confirm / window.alert), que se ven feos y en la app
+// instalada no se pueden personalizar. Se usa con confirmDialog() del
+// contexto: devuelve una promesa que resuelve true al confirmar y false
+// al cancelar, al cerrar con la X, al tocar fuera o con Escape.
+export const ConfirmModal = ({
+  open,
+  title,
+  message,
+  confirmLabel = "Confirmar",
+  cancelLabel = "Cancelar",
+  danger = false,
+  onConfirm,
+  onCancel,
+}) => {
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") onCancel?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] animate-fade-in"
+      onClick={onCancel}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
+        className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start gap-3">
+          <div
+            className={`shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center ${
+              danger
+                ? "bg-rose-100 text-rose-600"
+                : "bg-cyan-100 text-cyan-700"
+            }`}
+          >
+            <AlertTriangle size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-display font-bold text-lg text-slate-900 leading-snug">
+              {title}
+            </h3>
+            {message && (
+              <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                {message}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onCancel}
+            aria-label="Cerrar"
+            className="shrink-0 p-1.5 -mr-1 -mt-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 bg-white border border-slate-200 text-slate-700 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 transition-all"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white transition-all ${
+              danger
+                ? "bg-rose-600 hover:bg-rose-500 shadow-lg"
+                : "bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 shadow-glow"
+            }`}
+          >
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>

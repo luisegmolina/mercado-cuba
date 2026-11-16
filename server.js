@@ -763,10 +763,9 @@ app.get("/api/store/:identifier", async (req, res, next) => {
       return res.status(404).json({ error: "Tienda no encontrada" });
     if (storeRes.rows[0].is_suspended)
       return res.status(403).json({ error: "Tienda suspendida." });
-    // Una tienda oculta o sin licencia vigente no se abre ni por enlace
-    // directo (misma regla que la lista pública).
-    if (!storeRes.rows[0].is_public)
-      return res.status(404).json({ error: "Tienda no encontrada" });
+    // El enlace directo funciona aunque la tienda esté oculta
+    // (is_public=false): ocultar solo la saca del mercado, no la cierra.
+    // La suspensión y la licencia vencida sí bloquean la vista directa.
     const grantRes = await pool.query(
       `SELECT 1 FROM store_licenses WHERE store_id = $1 AND status = 'active' AND valid_until > now() LIMIT 1`,
       [storeRes.rows[0].id],

@@ -19,6 +19,7 @@ import {
   priceLabel,
   timeAgo,
   RatesBanner,
+  ConfirmModal,
   orderMessage,
   ProductDetailModal,
   PhotoUploader,
@@ -236,6 +237,34 @@ const AppProvider = ({ children }) => {
   const [needsPassword, setNeedsPassword] = useState(null);
   const [provinces, setProvinces] = useState([]);
   const [provincesError, setProvincesError] = useState(false);
+
+  // Confirmación estética (sustituye a window.confirm): el modal vive
+  // aquí, en el proveedor, y confirmDialog() devuelve una promesa que
+  // resuelve true al confirmar y false al cancelar o cerrar el modal.
+  const [confirmState, setConfirmState] = useState(null);
+  const confirmDialog = ({
+    title,
+    message,
+    confirmLabel = "Confirmar",
+    cancelLabel = "Cancelar",
+    danger = false,
+  }) =>
+    new Promise((resolve) => {
+      setConfirmState({
+        title,
+        message,
+        confirmLabel,
+        cancelLabel,
+        danger,
+        resolve,
+      });
+    });
+  const closeConfirm = (value) => {
+    setConfirmState((prev) => {
+      if (prev) prev.resolve(value);
+      return null;
+    });
+  };
 
   // Provincias compartidas: se cargan una sola vez en el contexto y las
   // usan la landing, el mercado y el formulario de Ajustes del vendedor.
@@ -499,7 +528,14 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteProduct = async (id) => {
-    if (!window.confirm("¿Eliminar este producto?")) return;
+    const ok = await confirmDialog({
+      title: "¿Eliminar este producto?",
+      message:
+        "El producto se borrará de tu tienda y dejará de verse en el mercado.",
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     setLoading(true);
     try {
       await fetch(`${API_URL}/products/${id}`, {
@@ -603,7 +639,13 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteCode = async (id) => {
-    if (!window.confirm("¿Borrar licencia?")) return;
+    const ok = await confirmDialog({
+      title: "¿Borrar licencia?",
+      message: "El código dejará de existir y no se podrá canjear.",
+      confirmLabel: "Borrar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await fetch(`${API_URL}/admin/codes/${id}`, {
         method: "DELETE",
@@ -637,7 +679,13 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteProvince = async (id, name) => {
-    if (!window.confirm(`¿Eliminar la provincia ${name}?`)) return false;
+    const ok = await confirmDialog({
+      title: `¿Eliminar la provincia ${name}?`,
+      message: "La provincia desaparecerá de la lista de ubicaciones.",
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return false;
     try {
       const res = await fetch(`${API_URL}/admin/provinces/${id}`, {
         method: "DELETE",
@@ -670,7 +718,13 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteMunicipality = async (id, name) => {
-    if (!window.confirm(`¿Eliminar el municipio ${name}?`)) return false;
+    const ok = await confirmDialog({
+      title: `¿Eliminar el municipio ${name}?`,
+      message: "El municipio desaparecerá de la lista de ubicaciones.",
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return false;
     try {
       const res = await fetch(`${API_URL}/admin/municipalities/${id}`, {
         method: "DELETE",
@@ -701,8 +755,13 @@ const AppProvider = ({ children }) => {
   };
 
   const revokeCode = async (id) => {
-    if (!window.confirm("¿Revocar esta licencia? La tienda pierde la vigencia."))
-      return;
+    const ok = await confirmDialog({
+      title: "¿Revocar esta licencia?",
+      message: "La tienda pierde la vigencia y dejará de verse en el mercado.",
+      confirmLabel: "Revocar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/admin/codes/${id}/revoke`, {
         method: "PUT",
@@ -736,7 +795,20 @@ const AppProvider = ({ children }) => {
   };
 
   const toggleStore = async (id, status) => {
-    if (!window.confirm("¿Cambiar estado de suspensión?")) return;
+    // status = is_suspended actual: si está activa se suspende (peligro),
+    // si está suspendida se quita la suspensión.
+    const suspending = !status;
+    const ok = await confirmDialog({
+      title: suspending
+        ? "¿Suspender esta tienda?"
+        : "¿Quitar la suspensión?",
+      message: suspending
+        ? "La tienda dejará de verse en el mercado y su enlace directo dejará de funcionar."
+        : "La tienda volverá a aparecer en el mercado.",
+      confirmLabel: suspending ? "Suspender" : "Quitar suspensión",
+      danger: suspending,
+    });
+    if (!ok) return;
     await fetch(`${API_URL}/admin/store/${id}/status`, {
       method: "PUT",
       headers: authHeaders(),
@@ -852,12 +924,14 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteStore = async (id) => {
-    if (
-      !window.confirm(
-        "¿ELIMINAR TIENDA? También se eliminará su usuario dueño si no tiene otra tienda.",
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: "¿Eliminar esta tienda?",
+      message:
+        "También se eliminará su usuario dueño si no tiene otra tienda.",
+      confirmLabel: "Eliminar tienda",
+      danger: true,
+    });
+    if (!ok) return;
     await fetch(`${API_URL}/admin/store/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
@@ -1061,10 +1135,23 @@ const AppProvider = ({ children }) => {
         createMunicipality,
         deleteMunicipality,
         logout,
+        confirmDialog,
       }}
     >
       {/* El LoadingOverlay se renderiza aquí para estar por encima de todo */}
       {loading && <LoadingOverlay />}
+      {confirmState && (
+        <ConfirmModal
+          open
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmLabel={confirmState.confirmLabel}
+          cancelLabel={confirmState.cancelLabel}
+          danger={confirmState.danger}
+          onConfirm={() => closeConfirm(true)}
+          onCancel={() => closeConfirm(false)}
+        />
+      )}
       {children}
     </AppContext.Provider>
   );
@@ -1985,13 +2072,11 @@ const LandingPage = () => {
 
 const StoreFrontend = () => {
   const { slug } = useParams();
-  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loadingStore, setLoadingStore] = useState(true);
   const [storeError, setStoreError] = useState(false);
   const [filter, setFilter] = useState("");
   const [visibleCount, setVisibleCount] = useState(12);
-  const goBack = useGoBack("/explorar");
   const closeDetail = useCloseDetail();
   const [searchParams, setSearchParams] = useSearchParams();
   const productoId = searchParams.get("producto");
@@ -2060,8 +2145,8 @@ const StoreFrontend = () => {
           <p className="text-sm text-slate-500">
             Esta tienda no existe o ya no está disponible.
           </p>
-          <Button onClick={() => navigate("/")} className="w-full">
-            Volver al inicio
+          <Button onClick={() => window.location.reload()} className="w-full">
+            Reintentar
           </Button>
         </Card>
       </div>
@@ -2111,27 +2196,11 @@ const StoreFrontend = () => {
     );
   };
 
+  // Vista independiente de la tienda: sin cabecera del mercado, sin
+  // enlaces al mercado y sin ticker de tasas. Solo la tienda: portada,
+  // logo, nombre, confianza, descripción, productos y WhatsApp.
   return (
     <div className="min-h-screen bg-[#F2FBFC] pb-20">
-      <div className="sticky top-0 bg-white/95 backdrop-blur-md z-30 px-4 py-3 border-b border-sky-100 flex items-center gap-3 shadow-sm">
-        <button
-          onClick={goBack}
-          className="p-2 -ml-2 rounded-full hover:bg-sky-50 text-slate-500"
-        >
-          <ChevronLeft />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg truncate text-slate-900">
-            {cleanName(store.name)}
-          </h1>
-        </div>
-        <button
-          onClick={() => navigate("/explorar")}
-          className="text-xs font-bold text-cyan-700 hover:text-cyan-600 shrink-0"
-        >
-          Mercado
-        </button>
-      </div>
       {/* Portada de la tienda: su foto de fondo, o la foto de su primer producto */}
       <div className="relative h-48 sm:h-60 overflow-hidden">
         <img
@@ -4903,9 +4972,17 @@ const NotFoundPage = () => {
 
 // --- CONFIGURACIÓN DE RUTAS ---
 const AppRoutes = () => {
+  const { pathname } = useLocation();
+  // La vista de tienda (/:slug) es independiente del mercado: sin
+  // ticker de tasas ni cabecera del mercado. Cualquier ruta de un solo
+  // segmento que no sea una ruta conocida es un slug de tienda.
+  const KNOWN_ROUTES = ["login", "register", "vendedor", "dashboard", "explorar"];
+  const segments = pathname.split("/").filter(Boolean);
+  const isStoreRoute =
+    segments.length === 1 && !KNOWN_ROUTES.includes(segments[0]);
   return (
     <>
-      <RatesBanner />
+      {!isStoreRoute && <RatesBanner />}
       <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthScreen mode="login" />} />
