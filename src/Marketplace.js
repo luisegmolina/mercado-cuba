@@ -459,6 +459,14 @@ const GlobalMarketplace = () => {
         (p.store_name || "").toLowerCase().includes(filterText.toLowerCase())),
   );
 
+  // Contador de Favoritos: en la pestaña Favoritos cuenta solo los
+  // favoritos que de verdad se ven (los que devolvió el servidor y pasan
+  // el filtro). Un favorito de una tienda suspendida u oculta sigue
+  // guardado en el teléfono pero no cuenta aquí. En las demás pestañas,
+  // sin datos de favoritos cargados, muestra los guardados.
+  const visibleFavoriteCount =
+    view === "favorites" ? filtered.length : favoriteIds.length;
+
   // Tiendas filtradas por municipio y por el buscador (nombre, provincia
   // o municipio).
   const filteredStores = (Array.isArray(stores) ? stores : []).filter(
@@ -744,7 +752,7 @@ const GlobalMarketplace = () => {
               className={view === "favorites" ? "fill-white" : ""}
             />{" "}
             Favoritos
-            {favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ""}
+            {visibleFavoriteCount > 0 ? ` (${visibleFavoriteCount})` : ""}
           </button>
         </div>
       </div>
@@ -1014,6 +1022,23 @@ const GlobalMarketplace = () => {
               <p className="text-sm">
                 Aún no tienes favoritos. Toca el corazón de un producto para
                 guardarlo aquí.
+              </p>
+            </>
+          ) : view === "favorites" &&
+            favoriteIds.length > 0 &&
+            !filterText ? (
+            <>
+              <Heart
+                size={48}
+                className="mx-auto mb-4 text-rose-400 fill-rose-200"
+              />
+              <p className="text-sm font-bold">
+                Tus favoritos no están disponibles en este momento.
+              </p>
+              <p className="text-sm mt-2">
+                La tienda puede estar suspendida u oculta, o el producto ya
+                no existe. Si vuelve a estar disponible, aparecerá aquí de
+                nuevo.
               </p>
             </>
           ) : (
