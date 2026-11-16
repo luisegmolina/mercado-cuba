@@ -91,6 +91,7 @@ import {
   BadgeCheck,
   Sparkles,
   Heart,
+  Download,
   //Camera,
   //Share2,
 } from "lucide-react";
@@ -110,6 +111,10 @@ const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 const FALLBACK_ADMIN_CONTACT = "18063168743";
 
 const APP_NAME = "Mercado Cuba";
+
+// Carpeta de Mega con el APK de Android (v1.0.1 y siguientes). Enlace fijo:
+// cada versión nueva se sube a esta misma carpeta mientras Play aprueba.
+const MEGA_APK_FOLDER_URL = "https://mega.nz/folder/m7h0QQ7B#GmAr_dOxKpz18sJ5lJUYnQ";
 
 // Copiar texto al portapapeles. navigator.clipboard falla fuera de HTTPS,
 // sin permiso o en algunos WebView (APK): en ese caso se usa el método
@@ -1595,6 +1600,14 @@ const LandingPage = () => {
                 <MessageCircle size={18} /> Cargando contacto...
               </button>
             )}
+            <a
+              href={MEGA_APK_FOLDER_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="sm:col-span-2 w-full bg-amber-600 text-white py-4 rounded-2xl text-base font-extrabold hover:bg-amber-500 transition-all flex items-center justify-center gap-2 text-center shadow-xl active:scale-[0.98]"
+            >
+              <Download size={20} /> Descargar la app (APK)
+            </a>
           </div>
         </div>
       </div>
