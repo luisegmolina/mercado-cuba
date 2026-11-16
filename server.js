@@ -249,6 +249,9 @@ const ensureSchema = async () => {
     // Búsqueda por productos + confianza del vendedor + destacados (2026-11-15)
     `ALTER TABLE stores ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT FALSE`,
     `CREATE INDEX IF NOT EXISTS idx_stores_verified ON stores(is_verified)`,
+    // Foto de fondo propia de la tienda (2026-11-15): NULL = usa la foto
+    // del primer producto y, si no hay, el hero de Cuba.
+    `ALTER TABLE stores ADD COLUMN IF NOT EXISTS cover_url TEXT`,
     `ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(50)`,
     `ALTER TABLE products ADD COLUMN IF NOT EXISTS featured_until TIMESTAMPTZ`,
     `CREATE INDEX IF NOT EXISTS idx_products_featured ON products(featured_until) WHERE featured_until IS NOT NULL`,
@@ -694,8 +697,16 @@ app.get("/api/public/landing", async (req, res, next) => {
       });
       if (featured.length >= 6) break;
     }
-    // Portada de cada tienda: la primera foto de su primer producto.
+    // Portada de cada tienda: su foto de fondo si la tiene; si no, la
+    // primera foto de su primer producto.
     const covers = {};
+    const coverRes = await pool.query(
+      `SELECT slug, cover_url FROM stores s WHERE ${PUBLIC_STORE_CONDITION} AND cover_url IS NOT NULL AND btrim(cover_url) <> ''`,
+    );
+    for (const row of coverRes.rows) {
+      const slug = String(row.slug || "").toLowerCase().trim();
+      if (slug) covers[slug] = row.cover_url;
+    }
     for (const p of items) {
       const slug = String(p.store_slug || "").toLowerCase().trim();
       if (slug && !(slug in covers)) {
@@ -717,7 +728,7 @@ app.get("/api/public/landing", async (req, res, next) => {
 app.get("/api/public/stores", async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id, s.municipality_id, s.created_at, s.is_verified,
+      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.cover_url, s.province_id, s.municipality_id, s.created_at, s.is_verified,
               p.name AS province_name, m.name AS municipality_name
        FROM stores s
        LEFT JOIN provinces p ON p.id = s.province_id
@@ -1311,6 +1322,7 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
     name,
     description,
     logoUrl,
+    coverUrl,
     whatsapp,
     is_public,
     province_id,
@@ -1336,6 +1348,16 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
   )
     return res.status(400).json({
       error: "El logo debe ser un enlace https; no se aceptan imágenes en base64",
+    });
+  if (
+    coverUrl !== undefined &&
+    coverUrl !== null &&
+    String(coverUrl).trim() !== "" &&
+    !isHttpsUrl(coverUrl)
+  )
+    return res.status(400).json({
+      error:
+        "La foto de fondo debe ser un enlace https; no se aceptan imágenes en base64",
     });
   if (
     province_id !== undefined &&
@@ -1391,12 +1413,13 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
 
     await pool.query(
       `UPDATE stores
-       SET name = $1, description = $2, logo_url = $3, whatsapp = $4, is_public = $5, province_id = $6, municipality_id = $7
-       WHERE id = $8`,
+       SET name = $1, description = $2, logo_url = $3, cover_url = $4, whatsapp = $5, is_public = $6, province_id = $7, municipality_id = $8
+       WHERE id = $9`,
       [
         String(name).trim(),
         description || null,
         logoUrl && String(logoUrl).trim() ? String(logoUrl).trim() : null,
+        coverUrl && String(coverUrl).trim() ? String(coverUrl).trim() : null,
         normalizedWhatsapp,
         is_public !== undefined ? !!is_public : store.is_public,
         finalProvinceId,
@@ -1617,7 +1640,7 @@ app.get("/api/admin/dashboard", authenticateToken, async (req, res, next) => {
       "SELECT password_changed_at, support_whatsapp FROM admins ORDER BY created_at ASC LIMIT 1",
     );
     const stores = await pool.query(
-      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.province_id,
+      `SELECT s.id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.cover_url, s.province_id,
               s.is_public, s.is_suspended, s.is_verified, s.created_at,
               u.owner_name, u.whatsapp AS owner_whatsapp, u.must_reset_password,
               p.name AS province_name,

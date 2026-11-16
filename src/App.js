@@ -2090,7 +2090,10 @@ const StoreFrontend = () => {
   const locationName = [store.municipality_name, provinceName]
     .filter(Boolean)
     .join(", ");
-  const coverImage = firstProductImage(visibleProducts) || CUBA_HERO;
+  // Portada de la tienda: su foto de fondo si la tiene; si no, la foto
+  // de su primer producto; y si no hay, el hero de Cuba.
+  const coverImage =
+    store.cover_url || firstProductImage(visibleProducts) || CUBA_HERO;
 
   const contact = (p) => {
     window.open(
@@ -2129,7 +2132,7 @@ const StoreFrontend = () => {
           Mercado
         </button>
       </div>
-      {/* Portada de la tienda: foto de su primer producto */}
+      {/* Portada de la tienda: su foto de fondo, o la foto de su primer producto */}
       <div className="relative h-48 sm:h-60 overflow-hidden">
         <img
           src={coverImage}
@@ -2619,6 +2622,7 @@ const VendorDashboard = () => {
     name: myStore?.name || "",
     description: myStore?.description || "",
     logoUrl: myStore?.logo_url || "",
+    coverUrl: myStore?.cover_url || "",
     whatsapp: myStore?.whatsapp || "",
     is_public: myStore?.is_public ?? true,
     province_id: myStore?.province_id || "",
@@ -2637,6 +2641,7 @@ const VendorDashboard = () => {
       name: myStore.name || "",
       description: myStore.description || "",
       logoUrl: myStore.logo_url || "",
+      coverUrl: myStore.cover_url || "",
       whatsapp: myStore.whatsapp || "",
       is_public: !!myStore.is_public,
       province_id: myStore.province_id || "",
@@ -2754,7 +2759,7 @@ const VendorDashboard = () => {
     prodPageSafe * PRODUCTS_PER_PAGE,
   );
 
-  // Añade una foto por su enlace (opción secundaria; máx. 3 por
+  // Añade una foto por su enlace (opción secundaria; máx. 5 por
   // producto). Solo URLs https: el backend rechaza base64 (data:)
   // con error 400.
   const addPhotoUrl = () => {
@@ -2764,8 +2769,8 @@ const VendorDashboard = () => {
       notify("Pega un enlace https válido", "error");
       return;
     }
-    if ((formP.images || []).length >= 3) {
-      notify("Máximo 3 fotos por producto", "error");
+    if ((formP.images || []).length >= 5) {
+      notify("Máximo 5 fotos por producto", "error");
       return;
     }
     setFormP((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
@@ -3084,6 +3089,35 @@ const VendorDashboard = () => {
                 />
               </div>
             </div>
+            <div className="p-4 bg-white rounded-xl border border-slate-200">
+              <PhotoUploader
+                images={formS.coverUrl ? [formS.coverUrl] : []}
+                onChange={(imgs) =>
+                  setFormS((prev) => ({ ...prev, coverUrl: imgs[0] || "" }))
+                }
+                max={1}
+                single
+                label="Foto de fondo de tu tienda"
+              />
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <label className="block text-[11px] text-slate-500 mb-1.5">
+                  ¿Prefieres pegar un enlace? (opcional)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://... (enlace de la imagen)"
+                  value={formS.coverUrl || ""}
+                  onChange={(e) =>
+                    setFormS({ ...formS, coverUrl: e.target.value })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Si la quitas, la portada vuelve a ser la foto de tu primer
+                producto.
+              </p>
+            </div>
             <div className="p-4 bg-sky-50 rounded-2xl border border-slate-200 flex items-center justify-between mb-4">
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Mercado Global</h4>
@@ -3283,7 +3317,7 @@ const VendorDashboard = () => {
                 onChange={(imgs) =>
                   setFormP((prev) => ({ ...prev, images: imgs }))
                 }
-                max={3}
+                max={5}
                 label="Fotos"
               />
               <div className="mt-4 pt-3 border-t border-slate-100">

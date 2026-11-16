@@ -470,7 +470,7 @@ export const SafeImage = ({
 export const PhotoUploader = ({
   images = [],
   onChange,
-  max = 3,
+  max = 5,
   single = false,
   label = "Fotos",
 }) => {
