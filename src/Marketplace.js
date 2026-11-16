@@ -472,10 +472,10 @@ const GlobalMarketplace = () => {
           className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_at_top,rgba(37,99,235,0.3),transparent_60%)]"
         />
         <div className="relative mb-8 text-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-cyan-600 to-sky-600 rounded-[1.75rem] flex items-center justify-center mx-auto mb-4 text-white shadow-glow ring-1 ring-sky-300">
-            <MapPin size={38} />
+          <div className="w-20 h-20 lg:w-16 lg:h-16 bg-gradient-to-br from-cyan-600 to-sky-600 rounded-[1.75rem] flex items-center justify-center mx-auto mb-4 text-white shadow-glow ring-1 ring-sky-300">
+            <MapPin className="h-9 w-9 lg:h-7 lg:w-7" />
           </div>
-          <h1 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">
+          <h1 className="font-display text-3xl sm:text-4xl lg:text-3xl font-extrabold tracking-tight mb-2">
             ¿Por dónde andas? 🇨🇺
           </h1>
           <p className="text-slate-500">
@@ -483,21 +483,21 @@ const GlobalMarketplace = () => {
           </p>
         </div>
 
-        <div className="relative w-full max-w-md space-y-3">
+        <div className="relative w-full max-w-md lg:max-w-2xl space-y-3">
           <button
             onClick={() =>
               handleSelectProvince("all", "Todas las provincias")
             }
-            className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white py-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95 shadow-glow"
+            className="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white py-4 lg:py-3 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95 shadow-glow"
           >
-            <Globe size={18} /> Todas las provincias
+            <Globe className="h-[18px] w-[18px] lg:h-4 lg:w-4" /> Todas las provincias
           </button>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             {provinces.map((prov) => (
               <button
                 key={prov.id}
                 onClick={() => handleSelectProvince(prov.id, prov.name)}
-                className="bg-white hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-slate-800 border border-slate-200 text-slate-600 py-4 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95"
+                className="bg-white hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-slate-800 border border-slate-200 text-slate-600 py-4 lg:py-3 rounded-2xl font-bold transition-all text-sm flex items-center justify-center gap-2 active:scale-95"
               >
                 {prov.name}
               </button>
@@ -544,14 +544,14 @@ const GlobalMarketplace = () => {
       </div>
 
       {/* Buscador */}
-      <div className="p-4">
+      <div className="p-4 lg:max-w-7xl lg:mx-auto lg:w-full">
         <div className="relative group">
           <Search
             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
             size={18}
           />
           <input
-            className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
+            className="w-full pl-12 pr-4 py-3.5 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
             placeholder={
               view === "stores"
                 ? `Buscar tiendas en ${selectedProvince.name}...`
@@ -565,9 +565,9 @@ const GlobalMarketplace = () => {
 
       {/* Filtros de búsqueda de productos (categoría y precio, en CUP o USD) */}
       {view === "products" && (
-        <div className="px-4 pb-1 space-y-2">
+        <div className="px-4 pb-1 space-y-2 lg:max-w-7xl lg:mx-auto lg:flex lg:gap-2 lg:space-y-0 lg:pb-2 lg:w-full">
           <select
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+            className="w-full lg:w-64 lg:shrink-0 px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
             value={categoryFilter}
             onChange={(e) =>
               updateParams({ categoria: e.target.value || null }, false)
@@ -580,7 +580,7 @@ const GlobalMarketplace = () => {
               </option>
             ))}
           </select>
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:flex-1">
             <input
               type="number"
               min="0"
@@ -590,7 +590,7 @@ const GlobalMarketplace = () => {
               onChange={(e) =>
                 updateParams({ min: e.target.value || null }, false)
               }
-              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+              className="flex-1 min-w-0 px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
             />
             <input
               type="number"
@@ -601,10 +601,10 @@ const GlobalMarketplace = () => {
               onChange={(e) =>
                 updateParams({ max: e.target.value || null }, false)
               }
-              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+              className="flex-1 min-w-0 px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
             />
             <select
-              className="px-3 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm shrink-0"
+              className="px-3 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm shrink-0"
               value={currencyFilter}
               onChange={(e) =>
                 updateParams(
@@ -623,9 +623,9 @@ const GlobalMarketplace = () => {
       {/* Filtro por municipio (solo con provincia concreta) */}
       {selectedProvince.id !== "all" &&
         municipalities.length > 0 && (
-        <div className="px-4 pb-1">
+        <div className="px-4 pb-1 lg:max-w-7xl lg:mx-auto lg:w-full">
           <select
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+            className="w-full px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
             value={selectedMunicipality?.id || "all"}
             onChange={(e) => {
               const id = e.target.value;
@@ -645,10 +645,10 @@ const GlobalMarketplace = () => {
 
       {/* Tiendas / Productos */}
       <div className="px-4 pb-2">
-        <div className="max-w-5xl mx-auto w-full bg-white border border-slate-200 rounded-2xl p-1 grid grid-cols-2 gap-1">
+        <div className="max-w-5xl lg:max-w-7xl mx-auto w-full bg-white border border-slate-200 rounded-2xl p-1 grid grid-cols-2 gap-1">
           <button
             onClick={() => switchView("stores")}
-            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`py-2.5 lg:py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
               view === "stores"
                 ? "bg-gradient-to-r from-cyan-600 to-sky-600 text-white shadow-glow"
                 : "text-slate-500 hover:bg-sky-100"
@@ -659,7 +659,7 @@ const GlobalMarketplace = () => {
           </button>
           <button
             onClick={() => switchView("products")}
-            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`py-2.5 lg:py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
               view === "products"
                 ? "bg-gradient-to-r from-cyan-600 to-sky-600 text-white shadow-glow"
                 : "text-slate-500 hover:bg-sky-100"
@@ -687,13 +687,13 @@ const GlobalMarketplace = () => {
               </p>
               <button
                 onClick={() => loadStores(selectedProvince)}
-                className="bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-glow"
+                className="bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white px-6 py-3 lg:py-2.5 rounded-2xl text-sm font-bold transition-all shadow-glow"
               >
                 Reintentar
               </button>
             </div>
           ) : (
-            <div className="px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in-up max-w-5xl mx-auto w-full">
+            <div className="px-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up max-w-5xl lg:max-w-7xl mx-auto w-full">
               {filteredStores.map((s) => {
                 const slug =
                   s.slug ||
@@ -776,7 +776,7 @@ const GlobalMarketplace = () => {
           {!storesLoading &&
             loadError !== "stores" &&
             filteredStores.length > 0 && (
-              <div className="px-4 mt-6 text-center max-w-5xl mx-auto">
+              <div className="px-4 mt-6 text-center max-w-5xl lg:max-w-7xl mx-auto">
                 <p className="text-xs text-slate-500">
                   {filterText
                     ? `Mostrando ${filteredStores.length} de ${plural(
@@ -818,7 +818,7 @@ const GlobalMarketplace = () => {
         </div>
       ) : (
         /* Grid */
-        <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up max-w-5xl mx-auto w-full">
+        <div className="px-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up max-w-5xl lg:max-w-7xl mx-auto w-full">
           {filtered.map((p) => {
             const mainImg = parseImages(p.images ?? p.image_url)[0];
             const isOut = Number(p.stock) === 0;
@@ -970,7 +970,7 @@ const GlobalMarketplace = () => {
       )}
 
       {!loading && loadError !== "products" && filtered.length > 0 && (
-        <div className="px-4 mt-6 text-center space-y-3 max-w-5xl mx-auto">
+        <div className="px-4 mt-6 text-center space-y-3 max-w-5xl lg:max-w-7xl mx-auto">
           <p className="text-xs text-slate-500">
             {filterText
               ? `Mostrando ${filtered.length} de ${products.length} cargados`
@@ -985,7 +985,7 @@ const GlobalMarketplace = () => {
           {hasMore && (
             <button
               onClick={handleLoadMore}
-              className="bg-white text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
+              className="bg-white text-slate-700 px-6 py-3 lg:py-2.5 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
             >
               Cargar más
             </button>

@@ -1211,7 +1211,7 @@ const AppProvider = ({ children }) => {
 const Button = ({ children, onClick, className = "", ...props }) => (
   <button
     onClick={onClick}
-    className={`px-4 py-3.5 rounded-2xl font-bold active:scale-95 flex items-center justify-center gap-2 shadow-glow text-sm bg-gradient-to-r from-cyan-600 to-sky-600 text-white hover:from-cyan-500 hover:to-sky-500 transition-all ${className}`}
+    className={`px-4 py-3.5 lg:py-2.5 rounded-2xl font-bold active:scale-95 flex items-center justify-center gap-2 shadow-glow text-sm bg-gradient-to-r from-cyan-600 to-sky-600 text-white hover:from-cyan-500 hover:to-sky-500 transition-all ${className}`}
     {...props}
   >
     {children}
@@ -1224,7 +1224,7 @@ const Input = ({ label, ...props }) => (
       {label}
     </label>
     <input
-      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500"
+      className="w-full px-4 py-3.5 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500"
       {...props}
     />
   </div>
@@ -1541,16 +1541,16 @@ const LandingPage = () => {
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-sky-950/75 via-sky-900/45 to-[#F2FBFC]" />
-        <div className="relative w-full max-w-5xl mx-auto px-4 pt-9 pb-16 text-center animate-fade-in">
+        <div className="relative w-full max-w-5xl mx-auto px-4 pt-9 pb-16 lg:pt-6 lg:pb-10 text-center animate-fade-in">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/15 px-4 py-1.5 text-xs font-bold text-white backdrop-blur">
             <Sparkles size={14} className="text-amber-300" /> El marketplace
             de Cuba
           </div>
-          <h1 className="font-display text-5xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.05] mt-6">
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.05] mt-6">
             Mercado{" "}
             <span className="text-gradient-cuba animate-gradient-x">Cuba</span>
           </h1>
-          <p className="text-xl sm:text-2xl text-white font-bold mt-3">
+          <p className="text-xl sm:text-2xl lg:text-xl text-white font-bold mt-3">
             Compra y vende en toda Cuba 🇨🇺
           </p>
           <p className="text-base text-sky-50 mt-4 leading-relaxed max-w-xl mx-auto">
@@ -1570,41 +1570,41 @@ const LandingPage = () => {
           <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto mt-7 text-left">
             <button
               onClick={() => navigate("/explorar")}
-              className="sm:col-span-2 w-full bg-white text-sky-800 py-4 rounded-2xl text-base font-extrabold hover:bg-sky-50 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
+              className="sm:col-span-2 w-full bg-white text-sky-800 py-4 lg:py-3 rounded-2xl text-base lg:text-sm font-extrabold hover:bg-sky-50 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
             >
-              <Grid size={20} /> Explorar Todo el Mercado
+              <Grid className="h-5 w-5 lg:h-4 lg:w-4" /> Explorar Todo el Mercado
             </button>
             <button
               onClick={() => navigate("/register")}
-              className="sm:col-span-2 w-full bg-cyan-600 text-white py-4 rounded-2xl text-base font-extrabold hover:bg-cyan-500 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
+              className="sm:col-span-2 w-full bg-cyan-600 text-white py-4 lg:py-3 rounded-2xl text-base lg:text-sm font-extrabold hover:bg-cyan-500 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-[0.98]"
             >
-              <UserPlus size={20} /> Crear Mi Tienda
+              <UserPlus className="h-5 w-5 lg:h-4 lg:w-4" /> Crear Mi Tienda
             </button>
             <button
               onClick={() => navigate("/login")}
-              className="w-full bg-sky-900 text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-sky-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+              className="w-full bg-sky-900 text-white py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold hover:bg-sky-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
-              <User size={18} /> Soy Vendedor (Entrar)
+              <User className="h-5 w-5 lg:h-4 lg:w-4" /> Soy Vendedor (Entrar)
             </button>
             <button
               onClick={() => setShowManual(true)}
-              className="w-full bg-sky-900 text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-sky-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+              className="w-full bg-sky-900 text-white py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold hover:bg-sky-800 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
             >
-              <FileText size={18} /> ¿Cómo funciona? (Guía)
+              <FileText className="h-5 w-5 lg:h-4 lg:w-4" /> ¿Cómo funciona? (Guía)
             </button>
             {superAdminContact ? (
               <a
                 href={licenseUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="sm:col-span-2 w-full bg-emerald-600 text-white py-4 rounded-2xl text-base font-extrabold hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green active:scale-[0.98]"
+                className="sm:col-span-2 w-full bg-emerald-600 text-white py-4 lg:py-3 rounded-2xl text-base lg:text-sm font-extrabold hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green active:scale-[0.98]"
               >
-                <MessageCircle size={20} /> Solicitar Licencia
+                <MessageCircle className="h-5 w-5 lg:h-4 lg:w-4" /> Solicitar Licencia
               </a>
             ) : (
               <button
                 disabled
-                className="sm:col-span-2 w-full bg-white/10 text-white/60 py-4 rounded-2xl text-sm font-bold border border-white/20 flex items-center justify-center gap-2"
+                className="sm:col-span-2 w-full bg-white/10 text-white/60 py-4 lg:py-3 rounded-2xl text-sm font-bold border border-white/20 flex items-center justify-center gap-2"
               >
                 <MessageCircle size={18} /> Cargando contacto...
               </button>
@@ -1613,14 +1613,14 @@ const LandingPage = () => {
               href={MEGA_APK_FOLDER_URL}
               target="_blank"
               rel="noreferrer"
-              className="sm:col-span-2 w-full bg-amber-600 text-white py-4 rounded-2xl text-base font-extrabold hover:bg-amber-500 transition-all flex items-center justify-center gap-2 text-center shadow-xl active:scale-[0.98]"
+              className="sm:col-span-2 w-full bg-amber-600 text-white py-4 lg:py-3 rounded-2xl text-base lg:text-sm font-extrabold hover:bg-amber-500 transition-all flex items-center justify-center gap-2 text-center shadow-xl active:scale-[0.98]"
             >
-              <Download size={20} /> Descargar la app (APK)
+              <Download className="h-5 w-5 lg:h-4 lg:w-4" /> Descargar la app (APK)
             </a>
           </div>
         </div>
       </div>
-      <div className="w-full max-w-5xl mx-auto px-4 py-10 space-y-10 sm:space-y-14">
+      <div className="w-full max-w-5xl lg:max-w-7xl mx-auto px-4 py-10 space-y-10 sm:space-y-14">
 
         {/* --- ¿POR QUÉ USAR MERCADO CUBA? --- */}
         <div className="animate-fade-in-up">
@@ -1706,7 +1706,7 @@ const LandingPage = () => {
               </ul>
               <button
                 onClick={() => navigate("/explorar")}
-                className="mt-6 w-full bg-sky-50 text-slate-900 py-3.5 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all flex items-center justify-center gap-2"
+                className="mt-6 w-full bg-sky-50 text-slate-900 py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all flex items-center justify-center gap-2"
               >
                 Explorar el mercado <ArrowRight size={16} />
               </button>
@@ -1788,14 +1788,14 @@ const LandingPage = () => {
                   href={licenseUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-6 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green"
+                  className="mt-6 w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 text-center shadow-glow-green"
                 >
                   <MessageCircle size={18} /> Solicitar licencia
                 </a>
               ) : (
                 <button
                   disabled
-                  className="mt-6 w-full bg-emerald-100 text-emerald-700/60 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+                  className="mt-6 w-full bg-emerald-100 text-emerald-700/60 py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
                 >
                   <MessageCircle size={18} /> Cargando contacto...
                 </button>
@@ -1863,7 +1863,7 @@ const LandingPage = () => {
                 Ver todo <ArrowRight size={14} />
               </button>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mt-3">
               {featured.map((p) => (
                 <div
                   key={p.id}
@@ -1920,13 +1920,13 @@ const LandingPage = () => {
           </h2>
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
-              className="flex-1 px-4 py-3 bg-white border border-slate-200 text-slate-900 rounded-2xl text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
+              className="flex-1 px-4 py-3 lg:py-2.5 bg-white border border-slate-200 text-slate-900 rounded-2xl text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
               placeholder="ej: modas-habana"
               value={input}
               onChange={(e) => setInput(e.target.value)}
             />
-            <button className="bg-gradient-to-r from-cyan-600 to-sky-600 text-white p-3 rounded-2xl hover:from-cyan-500 hover:to-sky-500 transition-all shadow-glow">
-              <ArrowRight size={20} />
+            <button className="bg-gradient-to-r from-cyan-600 to-sky-600 text-white p-3 lg:p-2.5 rounded-2xl hover:from-cyan-500 hover:to-sky-500 transition-all shadow-glow">
+              <ArrowRight className="h-5 w-5 lg:h-4 lg:w-4" />
             </button>
           </form>
           <p className="text-xs text-slate-500 mt-3">
@@ -2026,7 +2026,7 @@ const LandingPage = () => {
                 className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
               />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
               {visibleStores.map((s) => {
                 const cover = covers[storeSlug(s)] || CUBA_HERO;
                 return (
@@ -2070,7 +2070,7 @@ const LandingPage = () => {
                 {storesVisible < filteredStores.length && (
                   <button
                     onClick={() => setStoresVisible((c) => c + 12)}
-                    className="bg-white text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
+                    className="bg-white text-slate-700 px-6 py-3 lg:py-2.5 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
                   >
                     Cargar más
                   </button>
@@ -2334,7 +2334,7 @@ const StoreFrontend = () => {
       </div>
       {/* Confianza del vendedor: desde cuándo, cuántos productos,
           dónde está y si el súper admin lo verificó. */}
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 lg:max-w-7xl lg:mx-auto lg:w-full">
         <Card className="p-4 space-y-1">
           {store.is_verified && (
             <p>
@@ -2370,7 +2370,7 @@ const StoreFrontend = () => {
         </Card>
       </div>
       {store.whatsapp && (
-        <div className="px-4 pt-3">
+        <div className="px-4 pt-3 lg:max-w-7xl lg:mx-auto lg:w-full">
           <a
             href={waLink(
               store.whatsapp,
@@ -2378,15 +2378,15 @@ const StoreFrontend = () => {
             )}
             target="_blank"
             rel="noreferrer"
-            className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
+            className="w-full lg:w-auto lg:px-8 bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3 lg:py-2.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
           >
             <MessageCircle size={18} /> Escribir a la tienda
           </a>
         </div>
       )}
-      <div className="p-4">
+      <div className="p-4 lg:max-w-7xl lg:mx-auto lg:w-full">
         <input
-          className="w-full pl-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
+          className="w-full pl-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
           placeholder="Buscar productos..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -2394,10 +2394,10 @@ const StoreFrontend = () => {
       </div>
       {/* Todos / Favoritos: los favoritos son solo de esta tienda. */}
       <div className="px-4 pb-2">
-        <div className="max-w-5xl mx-auto w-full bg-white border border-slate-200 rounded-2xl p-1 grid grid-cols-2 gap-1">
+        <div className="max-w-5xl lg:max-w-7xl mx-auto w-full bg-white border border-slate-200 rounded-2xl p-1 grid grid-cols-2 gap-1">
           <button
             onClick={() => setShowFavorites(false)}
-            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`py-2.5 lg:py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
               !showFavorites
                 ? "bg-gradient-to-r from-cyan-600 to-sky-600 text-white shadow-glow"
                 : "text-slate-500 hover:bg-sky-100"
@@ -2407,7 +2407,7 @@ const StoreFrontend = () => {
           </button>
           <button
             onClick={() => setShowFavorites(true)}
-            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            className={`py-2.5 lg:py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
               showFavorites
                 ? "bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-glow"
                 : "text-slate-500 hover:bg-rose-50"
@@ -2424,9 +2424,9 @@ const StoreFrontend = () => {
       </div>
       {/* Filtros de la vista Todos: categoría y rango de precio. */}
       {!showFavorites && (
-        <div className="px-4 pb-2 space-y-2">
+        <div className="px-4 pb-2 space-y-2 lg:max-w-7xl lg:mx-auto lg:flex lg:items-center lg:gap-2 lg:space-y-0 lg:w-full">
           <select
-            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+            className="w-full lg:w-64 lg:shrink-0 px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
@@ -2437,7 +2437,7 @@ const StoreFrontend = () => {
               </option>
             ))}
           </select>
-          <div className="flex gap-2">
+          <div className="flex gap-2 lg:flex-1">
             <input
               type="number"
               min="0"
@@ -2445,7 +2445,7 @@ const StoreFrontend = () => {
               placeholder="Precio mínimo"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+              className="flex-1 min-w-0 px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
             />
             <input
               type="number"
@@ -2454,10 +2454,10 @@ const StoreFrontend = () => {
               placeholder="Precio máximo"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
-              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+              className="flex-1 min-w-0 px-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
             />
             <select
-              className="px-3 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm shrink-0"
+              className="px-3 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm shrink-0"
               value={currencyFilter}
               onChange={(e) => setCurrencyFilter(e.target.value)}
             >
@@ -2495,7 +2495,7 @@ const StoreFrontend = () => {
           )}
         </div>
       )}
-      <div className="px-4 pb-4 grid grid-cols-2 gap-3">
+      <div className="px-4 pb-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-w-7xl mx-auto w-full">
         {filtered.slice(0, visibleCount).map((p) => {
           const isOut = Number(p.stock) === 0;
           const hasPrice =

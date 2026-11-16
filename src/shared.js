@@ -839,7 +839,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                 (isOut ? (
                   <button
                     disabled
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-500 py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+                    className="w-full bg-slate-100 border border-slate-200 text-slate-500 py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
                   >
                     Agotado
                   </button>
@@ -857,7 +857,7 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
                     )}
                     target="_blank"
                     rel="noreferrer"
-                    className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
+                    className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3.5 lg:py-2.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
                   >
                     <MessageCircle size={18} /> Pedir por WhatsApp
                   </a>
