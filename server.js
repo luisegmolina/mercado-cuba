@@ -1444,6 +1444,47 @@ app.put("/api/store/settings", authenticateToken, async (req, res, next) => {
   }
 });
 
+// Solicitud de eliminación de cuenta desde dentro de la app
+// (Google Play exige esta vía además del enlace web de la ficha).
+// El vendedor solo SOLICITA: nada se borra en este paso. La solicitud
+// queda en auditoría y el súper admin completa la eliminación desde
+// la pestaña Usuarios (que ya borra al usuario y sus tiendas).
+app.post(
+  "/api/account/delete-request",
+  authenticateToken,
+  async (req, res, next) => {
+    if (req.user.role !== "vendor")
+      return res.status(403).json({ error: "No autorizado" });
+    try {
+      const userRes = await pool.query(
+        "SELECT whatsapp, owner_name FROM users WHERE id = $1",
+        [req.user.id],
+      );
+      if (userRes.rowCount === 0)
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      const storesRes = await pool.query(
+        "SELECT COUNT(*)::int AS n FROM stores WHERE owner_id = $1",
+        [req.user.id],
+      );
+      await logAudit({
+        actor_type: "vendor",
+        actor_id: req.user.id,
+        action: "account_delete_request",
+        target_type: "user",
+        target_id: req.user.id,
+        details: {
+          whatsapp: userRes.rows[0].whatsapp,
+          owner_name: userRes.rows[0].owner_name,
+          stores: storesRes.rows[0].n,
+        },
+      });
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 app.get("/api/public/provinces", async (req, res, next) => {
   try {
     const result = await pool.query(

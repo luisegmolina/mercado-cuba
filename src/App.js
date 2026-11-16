@@ -572,6 +572,36 @@ const AppProvider = ({ children }) => {
     }
   };
 
+  // Solicitud de eliminación de cuenta (Google Play exige poder
+  // pedirla desde dentro de la app, además del enlace web de la
+  // ficha). El vendedor solo la SOLICITA: nada se borra aquí. El
+  // súper admin la completa desde la pestaña Usuarios.
+  const requestAccountDeletion = async () => {
+    const ok = await confirmDialog({
+      title: "¿Solicitar la eliminación de tu cuenta?",
+      message:
+        "Se enviará una solicitud al administrador para borrar tu cuenta, tu tienda y todos tus productos. Esta acción no se puede deshacer.",
+      confirmLabel: "Solicitar eliminación",
+      danger: true,
+    });
+    if (!ok) return false;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/account/delete-request`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      notify("Solicitud enviada al administrador");
+      return true;
+    } catch (err) {
+      notify(friendlyError(err), "error");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loginSuperAdmin = async (password) => {
     setLoading(true);
     try {
@@ -1105,6 +1135,7 @@ const AppProvider = ({ children }) => {
         quickSaveProduct,
         deleteProduct,
         updateStoreSettings,
+        requestAccountDeletion,
         loginSuperAdmin,
         fetchAdminData,
         fetchAudit,
@@ -2718,12 +2749,20 @@ const VendorDashboard = () => {
     quickSaveProduct,
     deleteProduct,
     updateStoreSettings,
+    requestAccountDeletion,
     logout,
     provinces,
   } = useContext(AppContext);
   const { notify } = useToast();
   const navigate = useNavigate();
   const [tab, setTab] = useState("prod");
+  // Solicitud de eliminación de cuenta ya enviada (desactiva el botón
+  // para no duplicarla; el admin la completa desde Usuarios).
+  const [deleteRequested, setDeleteRequested] = useState(false);
+  const requestDeletion = async () => {
+    const sent = await requestAccountDeletion();
+    if (sent) setDeleteRequested(true);
+  };
   const [modal, setModal] = useState(false);
   const [editP, setEditP] = useState(null);
   const [formP, setFormP] = useState({});
@@ -3244,6 +3283,7 @@ const VendorDashboard = () => {
             )}
           </div>
         ) : (
+          <>
           <Card className="p-5 space-y-4">
             <Input
               label="Nombre Tienda"
@@ -3395,6 +3435,29 @@ const VendorDashboard = () => {
               Guardar Ajustes
             </Button>
           </Card>
+
+          {/* Zona de peligro: eliminación de cuenta (Google Play exige
+              poder pedirla desde dentro de la app). Solo se envía la
+              solicitud; el admin la completa desde Usuarios. */}
+          <Card className="border-2 border-red-200 bg-red-50">
+            <h3 className="font-bold text-red-700 mb-1">
+              Eliminar mi cuenta
+            </h3>
+            <p className="text-sm text-slate-600 mb-3">
+              Al solicitarlo, el administrador borrará tu cuenta, tu tienda
+              y todos tus productos. Esta acción no se puede deshacer.
+            </p>
+            <button
+              onClick={requestDeletion}
+              disabled={deleteRequested}
+              className="w-full px-4 py-3.5 rounded-2xl font-bold text-sm bg-red-600 text-white hover:bg-red-500 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-glow"
+            >
+              {deleteRequested
+                ? "Solicitud enviada al administrador"
+                : "Solicitar eliminación de mi cuenta"}
+            </button>
+          </Card>
+          </>
         )}
       </div>
 
@@ -3592,6 +3655,7 @@ const AUDIT_ACTION_LABELS = {
   featured_prices_update: "Precios de destacados actualizados",
   store_delete: "Tienda eliminada",
   user_delete: "Usuario eliminado",
+  account_delete_request: "Solicitud de eliminación de cuenta",
   user_password_reset: "Clave de vendedor reseteada",
   store_contact_change: "Contacto de tienda cambiado",
   admin_password_change: "Clave del admin cambiada",
