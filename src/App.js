@@ -2378,7 +2378,7 @@ const StoreFrontend = () => {
             )}
             target="_blank"
             rel="noreferrer"
-            className="w-full lg:w-auto lg:px-8 bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3 lg:py-2.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex items-center justify-center gap-2 shadow-glow-green"
+            className="w-full lg:w-auto lg:px-8 bg-gradient-to-r from-emerald-500 to-green-600 text-white py-3 lg:py-2.5 rounded-2xl text-sm font-bold hover:from-emerald-400 hover:to-green-500 transition-all flex lg:inline-flex items-center justify-center gap-2 shadow-glow-green"
           >
             <MessageCircle size={18} /> Escribir a la tienda
           </a>
