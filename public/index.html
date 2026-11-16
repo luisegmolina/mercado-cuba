@@ -2,6 +2,20 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
+    <script>
+      // La web canónica es Render. Cloudflare Pages (pages.dev) bloquea
+      // Cuba por el embargo, así que quien entre por pages.dev se redirige
+      // a onrender.com conservando la ruta. Si algún día se borra el
+      // proyecto de Pages, este script sobra.
+      if (window.location.hostname === "mercado-cuba.pages.dev") {
+        window.location.replace(
+          "https://mercado-cuba.onrender.com" +
+            window.location.pathname +
+            window.location.search +
+            window.location.hash,
+        );
+      }
+    </script>
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0284c7" />
