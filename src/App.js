@@ -93,7 +93,7 @@ import {
   Heart,
   Download,
   //Camera,
-  //Share2,
+  Share2,
 } from "lucide-react";
 
 /** * --- CONFIGURACIÓN DE RED Y CONSTANTES ---
@@ -2111,6 +2111,7 @@ const StoreFrontend = () => {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [currencyFilter, setCurrencyFilter] = useState("cup");
+  const { notify } = useToast();
   const closeDetail = useCloseDetail();
   const [searchParams, setSearchParams] = useSearchParams();
   const productoId = searchParams.get("producto");
@@ -2189,6 +2190,34 @@ const StoreFrontend = () => {
   }
 
   const { store, products } = data;
+  // Compartir la tienda: la URL lleva la barra final porque solo así
+  // Render sirve la página prerenderizada con la foto y el nombre de
+  // la tienda; sin la barra, WhatsApp ve la tarjeta genérica. En el
+  // teléfono usa el menú nativo de compartir; si no está disponible,
+  // copia el enlace.
+  const shareStore = async () => {
+    const url = `https://mercado-cuba.onrender.com/${store.slug}/`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${store.name} | Mercado Cuba`,
+          text: `Mira la tienda ${store.name} en Mercado Cuba`,
+          url,
+        });
+        return;
+      } catch {
+        // El usuario cerró el menú sin compartir: no hacer nada.
+        return;
+      }
+    }
+    const ok = await copyToClipboard(url);
+    notify(
+      ok
+        ? "Enlace copiado: al pegarlo en WhatsApp se verá la foto de la tienda"
+        : "No se pudo copiar el enlace",
+      ok ? "success" : "error",
+    );
+  };
   const visibleProducts = (Array.isArray(products) ? products : []).filter(
     (p) => p.is_visible !== false,
   );
@@ -2329,7 +2358,7 @@ const StoreFrontend = () => {
           <a
             href={waLink(
               store.whatsapp,
-              `Hola, vi tu tienda ${store.name} en Mercado Cuba: https://mercado-cuba.onrender.com/${store.slug}`,
+              `Hola, vi tu tienda ${store.name} en Mercado Cuba: https://mercado-cuba.onrender.com/${store.slug}/`,
             )}
             target="_blank"
             rel="noreferrer"
@@ -2339,6 +2368,16 @@ const StoreFrontend = () => {
           </a>
         </div>
       )}
+      {/* Compartir: el enlace lleva la barra final para que WhatsApp
+          muestre la vista previa con la foto y el nombre de la tienda. */}
+      <div className="px-4 pt-3 lg:max-w-7xl lg:mx-auto lg:w-full">
+        <button
+          onClick={shareStore}
+          className="w-full lg:w-auto lg:px-8 bg-white border border-slate-200 text-slate-700 py-3 lg:py-2.5 rounded-2xl text-sm font-bold hover:bg-sky-50 transition-all flex lg:inline-flex items-center justify-center gap-2"
+        >
+          <Share2 size={18} /> Compartir tienda
+        </button>
+      </div>
       <div className="p-4 lg:max-w-7xl lg:mx-auto lg:w-full">
         <input
           className="w-full pl-4 py-3 lg:py-2.5 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 transition-all placeholder:text-slate-500"
