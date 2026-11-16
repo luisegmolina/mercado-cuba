@@ -389,7 +389,7 @@ export const RatesBanner = () => {
 // Mensaje que le llega al vendedor por WhatsApp: producto, precio,
 // tienda, provincia y enlace. Así sabe de qué le hablan.
 export const orderMessage = ({ name, prices, storeName, province, slug }) =>
-  `Hola, vi en Mercado Cuba: ${name} — ${prices}. Tienda: ${storeName}${province ? ` (${province})` : ""}.${slug ? ` Ver: https://mercado-cuba.pages.dev/${slug}` : ""}`;
+  `Hola, vi en Mercado Cuba: ${name} — ${prices}. Tienda: ${storeName}${province ? ` (${province})` : ""}.${slug ? ` Ver: https://mercado-cuba.onrender.com/${slug}` : ""}`;
 
 // --- IMÁGENES ---
 // Normaliza las imágenes que vienen del servidor para que siempre sean un Array manejable por React.

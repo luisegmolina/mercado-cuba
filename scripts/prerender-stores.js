@@ -17,7 +17,7 @@ const fs = require("fs");
 const path = require("path");
 
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
-const SITE_URL = "https://mercado-cuba.pages.dev";
+const SITE_URL = "https://mercado-cuba.onrender.com";
 const DEFAULT_IMAGE = `${SITE_URL}/og-image.jpg`;
 const BUILD_DIR = path.join(__dirname, "..", "build");
 

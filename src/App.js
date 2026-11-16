@@ -2346,7 +2346,7 @@ const StoreFrontend = () => {
           <a
             href={waLink(
               store.whatsapp,
-              `Hola, vi tu tienda ${store.name} en Mercado Cuba: https://mercado-cuba.pages.dev/${store.slug}`,
+              `Hola, vi tu tienda ${store.name} en Mercado Cuba: https://mercado-cuba.onrender.com/${store.slug}`,
             )}
             target="_blank"
             rel="noreferrer"

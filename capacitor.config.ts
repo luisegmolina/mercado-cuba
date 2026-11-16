@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   // La APK carga la web en vivo: los cambios de la web se ven sin
   // recompilar la APK. El backend ya permite capacitor://localhost.
   server: {
-    url: 'https://mercado-cuba.pages.dev',
+    url: 'https://mercado-cuba.onrender.com',
     cleartext: false
   }
 };
