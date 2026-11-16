@@ -11,10 +11,6 @@ import {
   Camera,
   ImagePlus,
   Loader2,
-  Heart,
-  Star,
-  BadgeCheck,
-  AlertTriangle,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import {
@@ -39,6 +35,9 @@ export const HERO_IMAGES = [
   "/hero-varadero.jpg",
   "/hero-capitolio.jpg",
 ];
+
+// "1 tienda" / "3 tiendas": el número con el sustantivo en singular/plural.
+export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 // Elige una foto al azar, distinta a la de la visita anterior (si la hay).
 export const pickRandomHero = () => {
@@ -162,143 +161,6 @@ export const formatPrice = (value, code) => {
 // Nombres sin espacios al inicio/fin (hay tiendas y productos guardados
 // con espacios al final). Para mostrar, nunca para guardar.
 export const cleanName = (v) => String(v ?? "").trim();
-
-// Fecha corta en español ("14 nov 2026").
-export const formatDateShort = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return "";
-  return d.toLocaleDateString("es-ES", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-// --- CATEGORÍAS, DESTACADOS Y FAVORITOS ---
-// Lista canónica de categorías en español (la misma que en server.js y
-// que devuelve /api/public/categories). El filtro de búsqueda y el
-// formulario del vendedor usan esta lista.
-export const PRODUCT_CATEGORIES = [
-  "Alimentos",
-  "Bebidas",
-  "Electrodomésticos",
-  "Celulares",
-  "Ropa y calzado",
-  "Hogar",
-  "Motos",
-  "Belleza",
-  "Salud",
-  "Ferretería",
-  "Juguetes",
-  "Otros",
-];
-
-// Duraciones de anuncio destacado, como los paquetes de Revolico.
-// Los precios se configuran en el panel del súper admin (NULL = sin definir).
-export const FEATURED_DURATIONS = [3, 7, 30];
-
-// ¿Sigue vigente el destacado? Solo por fecha (featured_until > ahora),
-// sin depender de ningún cron.
-export const isFeatured = (p) =>
-  !!(
-    p &&
-    p.featured_until &&
-    new Date(p.featured_until).getTime() > Date.now()
-  );
-
-// Sello "Destacado" para tarjetas y detalle de producto.
-export const FeaturedBadge = () => (
-  <span className="inline-flex items-center gap-1 bg-amber-500 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow">
-    <Star size={11} className="fill-white text-white" /> Destacado
-  </span>
-);
-
-// Sello "Vendedor verificado" para la página de la tienda y tarjetas.
-export const VerifiedBadge = () => (
-  <span className="inline-flex items-center gap-1 bg-cyan-600/10 text-cyan-700 border border-cyan-600/20 text-xs font-bold px-2 py-1 rounded-full">
-    <BadgeCheck size={13} /> Vendedor verificado
-  </span>
-);
-
-// Favoritos: solo ids en localStorage (sin cuenta ni inicio de sesión).
-// Al abrir Favoritos se re-consultan los datos por id, así el precio
-// que se ve es el actual aunque haya cambiado. Funciona en la web y en
-// la APK (el WebView guarda el localStorage del origen pages.dev).
-// Si el almacenamiento no está disponible (incógnito, lleno), se
-// degrada en silencio y el corazón simplemente no guarda.
-export const FAVORITES_KEY = "mc:favorites";
-const FAVORITES_EVENT = "mc:favorites-changed";
-
-export const getFavoriteIds = () => {
-  try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr)
-      ? arr.filter((id) => typeof id === "string")
-      : [];
-  } catch {
-    return [];
-  }
-};
-
-export const isFavorite = (id) => getFavoriteIds().includes(id);
-
-export const toggleFavorite = (id) => {
-  const ids = getFavoriteIds();
-  const next = ids.includes(id)
-    ? ids.filter((x) => x !== id)
-    : [...ids, id];
-  try {
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
-  } catch {}
-  window.dispatchEvent(
-    new CustomEvent(FAVORITES_EVENT, { detail: next }),
-  );
-  return next;
-};
-
-// Hook para leer los favoritos y re-renderizar cuando cambian en
-// cualquier tarjeta o en el detalle.
-export const useFavorites = () => {
-  const [favs, setFavs] = useState(getFavoriteIds);
-  useEffect(() => {
-    const handler = (e) => setFavs(e.detail || getFavoriteIds());
-    window.addEventListener(FAVORITES_EVENT, handler);
-    return () => window.removeEventListener(FAVORITES_EVENT, handler);
-  }, []);
-  return [favs, toggleFavorite];
-};
-
-// Corazón de favorito para las tarjetas de producto. No abre el detalle:
-// el clic se queda en el corazón.
-export const FavHeart = ({
-  productId,
-  className = "absolute top-2 right-2 z-10",
-}) => {
-  const [favs, toggle] = useFavorites();
-  const active = favs.includes(productId);
-  return (
-    <button
-      type="button"
-      aria-label={
-        active ? "Quitar de favoritos" : "Guardar en favoritos"
-      }
-      onClick={(e) => {
-        e.stopPropagation();
-        toggle(productId);
-      }}
-      className={`${className} bg-white/90 backdrop-blur p-2 rounded-full shadow-md hover:scale-110 active:scale-95 transition-transform`}
-    >
-      <Heart
-        size={18}
-        className={
-          active ? "fill-rose-500 text-rose-500" : "text-slate-500"
-        }
-      />
-    </button>
-  );
-};
 
 export const priceLabel = (p) => {
   const parts = [
@@ -471,7 +333,7 @@ export const SafeImage = ({
 export const PhotoUploader = ({
   images = [],
   onChange,
-  max = 5,
+  max = 3,
   single = false,
   label = "Fotos",
 }) => {
@@ -766,20 +628,9 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
 
           {/* Datos del producto */}
           <div className="p-5 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <h2 className="font-display text-xl font-extrabold text-slate-900 leading-snug">
-                {cleanName(product.name)}
-              </h2>
-              <FavHeart
-                productId={product.id}
-                className="relative shrink-0 z-10"
-              />
-            </div>
-            {isFeatured(product) && (
-              <p>
-                <FeaturedBadge />
-              </p>
-            )}
+            <h2 className="font-display text-xl font-extrabold text-slate-900 leading-snug">
+              {cleanName(product.name)}
+            </h2>
             <p className="text-lg font-black bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
               {priceLabel(product)}
             </p>
@@ -816,13 +667,8 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               </p>
             )}
             {storeName && (
-              <p className="text-xs text-slate-500 flex flex-wrap items-center gap-1 pt-1">
+              <p className="text-xs text-slate-500 flex items-center gap-1 pt-1">
                 <Store size={12} className="shrink-0" /> {storeName}
-                {(product.store_verified || store?.is_verified) && (
-                  <span className="inline-flex items-center gap-0.5 text-cyan-700 font-bold">
-                    <BadgeCheck size={12} /> Verificado
-                  </span>
-                )}
                 {province && (
                   <>
                     {" "}
@@ -876,94 +722,6 @@ export const ProductDetailModal = ({ product, store, onClose }) => {
               )}
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Modal de confirmación propio: sustituye a los diálogos nativos del
-// navegador (window.confirm / window.alert), que se ven feos y en la app
-// instalada no se pueden personalizar. Se usa con confirmDialog() del
-// contexto: devuelve una promesa que resuelve true al confirmar y false
-// al cancelar, al cerrar con la X, al tocar fuera o con Escape.
-export const ConfirmModal = ({
-  open,
-  title,
-  message,
-  confirmLabel = "Confirmar",
-  cancelLabel = "Cancelar",
-  danger = false,
-  onConfirm,
-  onCancel,
-}) => {
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e) => {
-      if (e.key === "Escape") onCancel?.();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
-
-  if (!open) return null;
-  return (
-    <div
-      className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-[2px] animate-fade-in"
-      onClick={onCancel}
-    >
-      <div
-        role="alertdialog"
-        aria-modal="true"
-        aria-label={title}
-        className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-5 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start gap-3">
-          <div
-            className={`shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center ${
-              danger
-                ? "bg-rose-100 text-rose-600"
-                : "bg-cyan-100 text-cyan-700"
-            }`}
-          >
-            <AlertTriangle size={20} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-display font-bold text-lg text-slate-900 leading-snug">
-              {title}
-            </h3>
-            {message && (
-              <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-                {message}
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onCancel}
-            aria-label="Cerrar"
-            className="shrink-0 p-1.5 -mr-1 -mt-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 bg-white border border-slate-200 text-slate-700 py-3 rounded-2xl text-sm font-bold hover:bg-slate-50 transition-all"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`flex-1 py-3 rounded-2xl text-sm font-bold text-white transition-all ${
-              danger
-                ? "bg-rose-600 hover:bg-rose-500 shadow-lg"
-                : "bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 shadow-glow"
-            }`}
-          >
-            {confirmLabel}
-          </button>
         </div>
       </div>
     </div>
