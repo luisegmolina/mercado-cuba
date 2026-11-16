@@ -29,10 +29,12 @@ app.use(compression());
 // Sin crossOriginResourcePolicy: la API la consume el frontend desde
 // otro origen (pages.dev) y ese encabezado bloquearía los fetch.
 app.use(helmet({ crossOriginResourcePolicy: false }));
-// Orígenes permitidos: la web en producción, la APK (Capacitor) y el
-// desarrollo local. Sin Origin (curl, apps) se permite.
+// Orígenes permitidos: la web en producción (Cloudflare Pages y el
+// Static Site de Render), la APK (Capacitor) y el desarrollo local.
+// Sin Origin (curl, apps) se permite.
 const ALLOWED_ORIGINS = [
   "https://mercado-cuba.pages.dev",
+  "https://mercado-cuba.onrender.com",
   "capacitor://localhost",
   "http://localhost",
   "https://localhost",
