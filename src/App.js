@@ -1286,8 +1286,13 @@ const ManualModal = ({ onClose, contact }) => (
               <strong>Logo:</strong> Sube una foto de tu marca.
             </li>
             <li>
+              <strong>Foto de fondo:</strong> sube una imagen que represente
+              a tu tienda, es la portada que ven tus clientes.
+            </li>
+            <li>
               <strong>Mercado Global:</strong> Activa la casilla para aparecer
-              en el buscador público.
+              en el buscador público. Si la desactivas, tu tienda no sale en
+              el mercado, pero tu enlace directo sigue funcionando.
             </li>
           </ul>
         </section>
@@ -1302,7 +1307,7 @@ const ManualModal = ({ onClose, contact }) => (
             <li>
               Toca el botón <strong>(+) Azul</strong>.
             </li>
-            <li>Pon nombre, precio (CUP/USD) y fotos.</li>
+            <li>Pon nombre, precio (CUP/USD) y hasta 5 fotos.</li>
             <li className="text-emerald-600 font-bold">
               ¡Listo! Ya está visible en la vista general.
             </li>
