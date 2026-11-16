@@ -19,16 +19,25 @@ import {
   priceLabel,
   timeAgo,
   RatesBanner,
+  ConfirmModal,
   orderMessage,
   ProductDetailModal,
   PhotoUploader,
   CUBA_HERO,
   pickRandomHero,
-  plural,
   firstProductImage,
   cleanName,
   useGoBack,
   useCloseDetail,
+  PRODUCT_CATEGORIES,
+  FEATURED_DURATIONS,
+  FavHeart,
+  useFavorites,
+  plural,
+  FeaturedBadge,
+  VerifiedBadge,
+  isFeatured,
+  formatDateShort,
 } from "./shared";
 // Importamos los componentes de navegación para crear una Single Page Application (SPA)
 import {
@@ -81,6 +90,7 @@ import {
   Wallet,
   BadgeCheck,
   Sparkles,
+  Heart,
   //Camera,
   //Share2,
 } from "lucide-react";
@@ -221,6 +231,8 @@ const AppProvider = ({ children }) => {
   const [myProducts, setMyProducts] = useState([]);
   const [adminData, setAdminData] = useState(null);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [adminFeatured, setAdminFeatured] = useState([]);
+  const [featuredPrices, setFeaturedPrices] = useState([]);
   const [superAdminContact, setSuperAdminContact] = useState(
     FALLBACK_ADMIN_CONTACT
   );
@@ -228,6 +240,34 @@ const AppProvider = ({ children }) => {
   const [needsPassword, setNeedsPassword] = useState(null);
   const [provinces, setProvinces] = useState([]);
   const [provincesError, setProvincesError] = useState(false);
+
+  // Confirmación estética (sustituye a window.confirm): el modal vive
+  // aquí, en el proveedor, y confirmDialog() devuelve una promesa que
+  // resuelve true al confirmar y false al cancelar o cerrar el modal.
+  const [confirmState, setConfirmState] = useState(null);
+  const confirmDialog = ({
+    title,
+    message,
+    confirmLabel = "Confirmar",
+    cancelLabel = "Cancelar",
+    danger = false,
+  }) =>
+    new Promise((resolve) => {
+      setConfirmState({
+        title,
+        message,
+        confirmLabel,
+        cancelLabel,
+        danger,
+        resolve,
+      });
+    });
+  const closeConfirm = (value) => {
+    setConfirmState((prev) => {
+      if (prev) prev.resolve(value);
+      return null;
+    });
+  };
 
   // Provincias compartidas: se cargan una sola vez en el contexto y las
   // usan la landing, el mercado y el formulario de Ajustes del vendedor.
@@ -491,7 +531,14 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteProduct = async (id) => {
-    if (!window.confirm("¿Eliminar este producto?")) return;
+    const ok = await confirmDialog({
+      title: "¿Eliminar este producto?",
+      message:
+        "El producto se borrará de tu tienda y dejará de verse en el mercado.",
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return;
     setLoading(true);
     try {
       await fetch(`${API_URL}/products/${id}`, {
@@ -595,7 +642,13 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteCode = async (id) => {
-    if (!window.confirm("¿Borrar licencia?")) return;
+    const ok = await confirmDialog({
+      title: "¿Borrar licencia?",
+      message: "El código dejará de existir y no se podrá canjear.",
+      confirmLabel: "Borrar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await fetch(`${API_URL}/admin/codes/${id}`, {
         method: "DELETE",
@@ -629,7 +682,13 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteProvince = async (id, name) => {
-    if (!window.confirm(`¿Eliminar la provincia ${name}?`)) return false;
+    const ok = await confirmDialog({
+      title: `¿Eliminar la provincia ${name}?`,
+      message: "La provincia desaparecerá de la lista de ubicaciones.",
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return false;
     try {
       const res = await fetch(`${API_URL}/admin/provinces/${id}`, {
         method: "DELETE",
@@ -662,7 +721,13 @@ const AppProvider = ({ children }) => {
   };
 
   const deleteMunicipality = async (id, name) => {
-    if (!window.confirm(`¿Eliminar el municipio ${name}?`)) return false;
+    const ok = await confirmDialog({
+      title: `¿Eliminar el municipio ${name}?`,
+      message: "El municipio desaparecerá de la lista de ubicaciones.",
+      confirmLabel: "Eliminar",
+      danger: true,
+    });
+    if (!ok) return false;
     try {
       const res = await fetch(`${API_URL}/admin/municipalities/${id}`, {
         method: "DELETE",
@@ -693,8 +758,13 @@ const AppProvider = ({ children }) => {
   };
 
   const revokeCode = async (id) => {
-    if (!window.confirm("¿Revocar esta licencia? La tienda pierde la vigencia."))
-      return;
+    const ok = await confirmDialog({
+      title: "¿Revocar esta licencia?",
+      message: "La tienda pierde la vigencia y dejará de verse en el mercado.",
+      confirmLabel: "Revocar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`${API_URL}/admin/codes/${id}/revoke`, {
         method: "PUT",
@@ -728,7 +798,20 @@ const AppProvider = ({ children }) => {
   };
 
   const toggleStore = async (id, status) => {
-    if (!window.confirm("¿Cambiar estado de suspensión?")) return;
+    // status = is_suspended actual: si está activa se suspende (peligro),
+    // si está suspendida se quita la suspensión.
+    const suspending = !status;
+    const ok = await confirmDialog({
+      title: suspending
+        ? "¿Suspender esta tienda?"
+        : "¿Quitar la suspensión?",
+      message: suspending
+        ? "La tienda dejará de verse en el mercado y su enlace directo dejará de funcionar."
+        : "La tienda volverá a aparecer en el mercado.",
+      confirmLabel: suspending ? "Suspender" : "Quitar suspensión",
+      danger: suspending,
+    });
+    if (!ok) return;
     await fetch(`${API_URL}/admin/store/${id}/status`, {
       method: "PUT",
       headers: authHeaders(),
@@ -738,13 +821,120 @@ const AppProvider = ({ children }) => {
     notify("Estado actualizado");
   };
 
+  // Verificar una tienda (sello "Vendedor verificado" en su página).
+  // Solo el súper admin lo activa o lo quita desde el panel.
+  const toggleStoreVerified = async (id, current) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/store/${id}/verified`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ is_verified: !current }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      fetchAdminData();
+      notify(!current ? "Tienda verificada" : "Verificación retirada");
+    } catch (e) {
+      notify(friendlyError(e), "error");
+    }
+  };
+
+  // Anuncios destacados: el vendedor lo pide por WhatsApp y el súper
+  // admin lo activa aquí eligiendo la duración (3, 7 o 30 días). La
+  // vigencia es una fecha (featured_until): el producto deja de ser
+  // destacado solo cuando vence, sin cron.
+  const fetchAdminFeatured = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/featured`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminFeatured(data.featured || []);
+      }
+    } catch (e) {}
+  };
+
+  const activateFeatured = async (productId, days) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/admin/product/${productId}/featured`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+          body: JSON.stringify({ days }),
+        },
+      );
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      const data = await res.json();
+      fetchAdminFeatured();
+      notify(
+        days === 0
+          ? "Destacado retirado"
+          : `Destacado activado hasta ${new Date(data.featured_until).toLocaleDateString("es-ES")}`,
+      );
+      return true;
+    } catch (e) {
+      notify(friendlyError(e), "error");
+      return false;
+    }
+  };
+
+  // Precios de los destacados por duración (NULL = sin definir; Luis los
+  // fija desde el panel). La lectura es pública; la escritura, solo admin.
+  const fetchFeaturedPrices = async () => {
+    try {
+      const res = await fetch(`${API_URL}/public/featured-prices`);
+      if (res.ok) {
+        const data = await res.json();
+        setFeaturedPrices(data.prices || []);
+        return data.prices || [];
+      }
+    } catch (e) {}
+    return [];
+  };
+
+  const saveFeaturedPrices = async (prices) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/featured-prices`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({ prices }),
+      });
+      if (!res.ok) throw new Error(await readErrorMessage(res));
+      const data = await res.json();
+      setFeaturedPrices(data.prices || []);
+      notify("Precios de destacados guardados");
+      return true;
+    } catch (e) {
+      notify(friendlyError(e), "error");
+      return false;
+    }
+  };
+
+  // Buscar productos (para activar un destacado por nombre o tienda).
+  const adminSearchProducts = async (q) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/admin/products/search?q=${encodeURIComponent(q)}`,
+        { headers: authHeaders() },
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.products || [];
+    } catch (e) {
+      return [];
+    }
+  };
+
   const deleteStore = async (id) => {
-    if (
-      !window.confirm(
-        "¿ELIMINAR TIENDA? También se eliminará su usuario dueño si no tiene otra tienda.",
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: "¿Eliminar esta tienda?",
+      message:
+        "También se eliminará su usuario dueño si no tiene otra tienda.",
+      confirmLabel: "Eliminar tienda",
+      danger: true,
+    });
+    if (!ok) return;
     await fetch(`${API_URL}/admin/store/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
@@ -924,6 +1114,14 @@ const AppProvider = ({ children }) => {
         adminResetUserPass,
         generateCode,
         toggleStore,
+        toggleStoreVerified,
+        adminFeatured,
+        fetchAdminFeatured,
+        activateFeatured,
+        featuredPrices,
+        fetchFeaturedPrices,
+        saveFeaturedPrices,
+        adminSearchProducts,
         deleteStore,
         updateAdminPass,
         adminResetStorePass,
@@ -940,10 +1138,23 @@ const AppProvider = ({ children }) => {
         createMunicipality,
         deleteMunicipality,
         logout,
+        confirmDialog,
       }}
     >
       {/* El LoadingOverlay se renderiza aquí para estar por encima de todo */}
       {loading && <LoadingOverlay />}
+      {confirmState && (
+        <ConfirmModal
+          open
+          title={confirmState.title}
+          message={confirmState.message}
+          confirmLabel={confirmState.confirmLabel}
+          cancelLabel={confirmState.cancelLabel}
+          danger={confirmState.danger}
+          onConfirm={() => closeConfirm(true)}
+          onCancel={() => closeConfirm(false)}
+        />
+      )}
       {children}
     </AppContext.Provider>
   );
@@ -1078,8 +1289,13 @@ const ManualModal = ({ onClose, contact }) => (
               <strong>Logo:</strong> Sube una foto de tu marca.
             </li>
             <li>
+              <strong>Foto de fondo:</strong> sube una imagen que represente
+              a tu tienda, es la portada que ven tus clientes.
+            </li>
+            <li>
               <strong>Mercado Global:</strong> Activa la casilla para aparecer
-              en el buscador público.
+              en el buscador público. Si la desactivas, tu tienda no sale en
+              el mercado, pero tu enlace directo sigue funcionando.
             </li>
           </ul>
         </section>
@@ -1094,7 +1310,7 @@ const ManualModal = ({ onClose, contact }) => (
             <li>
               Toca el botón <strong>(+) Azul</strong>.
             </li>
-            <li>Pon nombre, precio (CUP/USD) y fotos.</li>
+            <li>Pon nombre, precio (CUP/USD) y hasta 5 fotos.</li>
             <li className="text-emerald-600 font-bold">
               ¡Listo! Ya está visible en la vista general.
             </li>
@@ -1596,10 +1812,10 @@ const LandingPage = () => {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-3">
               {featured.map((p) => (
-                <button
+                <div
                   key={p.id}
                   onClick={() => openDetail(p)}
-                  className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98]"
+                  className="group bg-white rounded-3xl overflow-hidden border border-slate-200 text-left shadow-xl transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-cyan-300 active:scale-[0.98] cursor-pointer"
                 >
                   <div className="aspect-square bg-sky-50 overflow-hidden relative">
                     <SafeImage
@@ -1607,11 +1823,15 @@ const LandingPage = () => {
                       alt={cleanName(p.name)}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    {Number(p.stock) === 0 && (
-                      <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
-                        Agotado
-                      </span>
-                    )}
+                    <FavHeart productId={p.id} />
+                    <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                      {isFeatured(p) && <FeaturedBadge />}
+                      {Number(p.stock) === 0 && (
+                        <span className="bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
+                          Agotado
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="p-3 sm:p-4">
                     <p className="text-sm font-bold text-slate-900 line-clamp-2">
@@ -1624,10 +1844,16 @@ const LandingPage = () => {
                       <p className="text-[11px] text-slate-500 truncate mt-1 flex items-center gap-1">
                         <Store size={11} className="shrink-0" />{" "}
                         {p.store_name}
+                        {p.store_verified && (
+                          <BadgeCheck
+                            size={11}
+                            className="text-cyan-600 shrink-0"
+                          />
+                        )}
                       </p>
                     )}
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -1858,21 +2084,23 @@ const LandingPage = () => {
 
 const StoreFrontend = () => {
   const { slug } = useParams();
-  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loadingStore, setLoadingStore] = useState(true);
   const [storeError, setStoreError] = useState(false);
   const [filter, setFilter] = useState("");
   const [visibleCount, setVisibleCount] = useState(12);
-  const goBack = useGoBack("/explorar");
+  // Favoritos: solo de ESTA tienda (los guardados en este teléfono).
+  const [favoriteIds] = useFavorites();
+  const [showFavorites, setShowFavorites] = useState(false);
   const closeDetail = useCloseDetail();
   const [searchParams, setSearchParams] = useSearchParams();
   const productoId = searchParams.get("producto");
 
-  // Al cambiar de tienda o de búsqueda, se vuelve a mostrar desde arriba.
+  // Al cambiar de tienda, de búsqueda o de filtro de favoritos, se
+  // vuelve a mostrar desde arriba.
   useEffect(() => {
     setVisibleCount(12);
-  }, [slug, filter]);
+  }, [slug, filter, showFavorites]);
 
   useEffect(() => {
     setLoadingStore(true);
@@ -1933,8 +2161,8 @@ const StoreFrontend = () => {
           <p className="text-sm text-slate-500">
             Esta tienda no existe o ya no está disponible.
           </p>
-          <Button onClick={() => navigate("/")} className="w-full">
-            Volver al inicio
+          <Button onClick={() => window.location.reload()} className="w-full">
+            Reintentar
           </Button>
         </Card>
       </div>
@@ -1955,15 +2183,24 @@ const StoreFrontend = () => {
     next.set("producto", p.id);
     setSearchParams(next);
   };
-  const filtered = visibleProducts.filter((p) =>
-    (p.name || "").toLowerCase().includes(filter.toLowerCase()),
+  // Favoritos de esta tienda: los guardados que son productos de aquí.
+  const storeFavoriteCount = visibleProducts.filter((p) =>
+    favoriteIds.includes(p.id),
+  ).length;
+  const filtered = visibleProducts.filter(
+    (p) =>
+      (!showFavorites || favoriteIds.includes(p.id)) &&
+      (p.name || "").toLowerCase().includes(filter.toLowerCase()),
   );
   const provinceName = store.province_name || store.province || "";
   // Ubicación completa: "Municipio, Provincia" cuando hay municipio.
   const locationName = [store.municipality_name, provinceName]
     .filter(Boolean)
     .join(", ");
-  const coverImage = firstProductImage(visibleProducts) || CUBA_HERO;
+  // Portada de la tienda: su foto de fondo si la tiene; si no, la foto
+  // de su primer producto; y si no hay, el hero de Cuba.
+  const coverImage =
+    store.cover_url || firstProductImage(visibleProducts) || CUBA_HERO;
 
   const contact = (p) => {
     window.open(
@@ -1981,28 +2218,12 @@ const StoreFrontend = () => {
     );
   };
 
+  // Vista independiente de la tienda: sin cabecera del mercado, sin
+  // enlaces al mercado y sin ticker de tasas. Solo la tienda: portada,
+  // logo, nombre, confianza, descripción, productos y WhatsApp.
   return (
     <div className="min-h-screen bg-[#F2FBFC] pb-20">
-      <div className="sticky top-0 bg-white/95 backdrop-blur-md z-30 px-4 py-3 border-b border-sky-100 flex items-center gap-3 shadow-sm">
-        <button
-          onClick={goBack}
-          className="p-2 -ml-2 rounded-full hover:bg-sky-50 text-slate-500"
-        >
-          <ChevronLeft />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-display font-bold text-lg truncate text-slate-900">
-            {cleanName(store.name)}
-          </h1>
-        </div>
-        <button
-          onClick={() => navigate("/explorar")}
-          className="text-xs font-bold text-cyan-700 hover:text-cyan-600 shrink-0"
-        >
-          Mercado
-        </button>
-      </div>
-      {/* Portada de la tienda: foto de su primer producto */}
+      {/* Portada de la tienda: su foto de fondo, o la foto de su primer producto */}
       <div className="relative h-48 sm:h-60 overflow-hidden">
         <img
           src={coverImage}
@@ -2031,30 +2252,43 @@ const StoreFrontend = () => {
           </div>
         </div>
       </div>
-      {(store.description || store.owner_name || locationName) && (
-        <div className="px-4 pt-4">
-          <Card className="p-4 space-y-1">
-            {store.description && (
-              <p className="text-sm text-slate-600">{store.description}</p>
+      {/* Confianza del vendedor: desde cuándo, cuántos productos,
+          dónde está y si el súper admin lo verificó. */}
+      <div className="px-4 pt-4">
+        <Card className="p-4 space-y-1">
+          {store.is_verified && (
+            <p>
+              <VerifiedBadge />
+            </p>
+          )}
+          <p className="text-xs text-slate-500">
+            {store.created_at && (
+              <>Tienda desde {formatDateShort(store.created_at)} · </>
             )}
-            {store.owner_name && (
-              <p className="text-xs text-slate-500">
-                Dueño: {store.owner_name}
-              </p>
-            )}
-            {locationName && (
-              <p className="text-xs text-slate-500 flex items-center gap-1">
-                <MapPin size={12} /> {locationName}
-              </p>
-            )}
-            {store.whatsapp && (
-              <p className="text-xs text-slate-500">
-                WhatsApp: {formatPhone(store.whatsapp)}
-              </p>
-            )}
-          </Card>
-        </div>
-      )}
+            {visibleProducts.length}{" "}
+            {visibleProducts.length === 1 ? "producto" : "productos"}{" "}
+            publicados
+          </p>
+          {store.description && (
+            <p className="text-sm text-slate-600">{store.description}</p>
+          )}
+          {store.owner_name && (
+            <p className="text-xs text-slate-500">
+              Dueño: {store.owner_name}
+            </p>
+          )}
+          {locationName && (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <MapPin size={12} /> {locationName}
+            </p>
+          )}
+          {store.whatsapp && (
+            <p className="text-xs text-slate-500">
+              WhatsApp: {formatPhone(store.whatsapp)}
+            </p>
+          )}
+        </Card>
+      </div>
       {store.whatsapp && (
         <div className="px-4 pt-3">
           <a
@@ -2078,14 +2312,62 @@ const StoreFrontend = () => {
           onChange={(e) => setFilter(e.target.value)}
         />
       </div>
+      {/* Todos / Favoritos: los favoritos son solo de esta tienda. */}
+      <div className="px-4 pb-2">
+        <div className="max-w-5xl mx-auto w-full bg-white border border-slate-200 rounded-2xl p-1 grid grid-cols-2 gap-1">
+          <button
+            onClick={() => setShowFavorites(false)}
+            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              !showFavorites
+                ? "bg-gradient-to-r from-cyan-600 to-sky-600 text-white shadow-glow"
+                : "text-slate-500 hover:bg-sky-100"
+            }`}
+          >
+            <ShoppingBag size={14} /> Todos
+          </button>
+          <button
+            onClick={() => setShowFavorites(true)}
+            className={`py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+              showFavorites
+                ? "bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-glow"
+                : "text-slate-500 hover:bg-rose-50"
+            }`}
+          >
+            <Heart
+              size={14}
+              className={showFavorites ? "fill-white" : ""}
+            />{" "}
+            Favoritos
+            {storeFavoriteCount > 0 ? ` (${storeFavoriteCount})` : ""}
+          </button>
+        </div>
+      </div>
       {filtered.length === 0 && (
         <div className="text-center py-16 px-6">
-          <ShoppingBag size={48} className="mx-auto mb-4 text-slate-400" />
-          <p className="text-sm text-slate-500">
-            {filter
-              ? "No encontramos eso por aquí, prueba con otra palabra."
-              : "Esta tienda todavía no tiene productos a la venta."}
-          </p>
+          {showFavorites ? (
+            <>
+              <Heart
+                size={48}
+                className="mx-auto mb-4 text-rose-400 fill-rose-200"
+              />
+              <p className="text-sm text-slate-500">
+                No tienes favoritos en esta tienda todavía. Toca el corazón
+                de un producto para guardarlo aquí.
+              </p>
+            </>
+          ) : (
+            <>
+              <ShoppingBag
+                size={48}
+                className="mx-auto mb-4 text-slate-400"
+              />
+              <p className="text-sm text-slate-500">
+                {filter
+                  ? "No encontramos eso por aquí, prueba con otra palabra."
+                  : "Esta tienda todavía no tiene productos a la venta."}
+              </p>
+            </>
+          )}
         </div>
       )}
       <div className="px-4 pb-4 grid grid-cols-2 gap-3">
@@ -2101,11 +2383,15 @@ const StoreFrontend = () => {
           >
             <div className="relative">
               <ImageGallery imagesStr={p.images ?? p.image_url} />
-              {isOut && (
-                <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full z-10">
-                  Agotado
-                </span>
-              )}
+              <FavHeart productId={p.id} />
+              <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                {isFeatured(p) && <FeaturedBadge />}
+                {isOut && (
+                  <span className="bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
+                    Agotado
+                  </span>
+                )}
+              </div>
             </div>
             <div className="p-3 flex-1 flex flex-col">
               <h3 className="text-sm font-bold text-slate-900 line-clamp-2 mb-2">
@@ -2475,6 +2761,7 @@ const VendorDashboard = () => {
     name: myStore?.name || "",
     description: myStore?.description || "",
     logoUrl: myStore?.logo_url || "",
+    coverUrl: myStore?.cover_url || "",
     whatsapp: myStore?.whatsapp || "",
     is_public: myStore?.is_public ?? true,
     province_id: myStore?.province_id || "",
@@ -2493,6 +2780,7 @@ const VendorDashboard = () => {
       name: myStore.name || "",
       description: myStore.description || "",
       logoUrl: myStore.logo_url || "",
+      coverUrl: myStore.cover_url || "",
       whatsapp: myStore.whatsapp || "",
       is_public: !!myStore.is_public,
       province_id: myStore.province_id || "",
@@ -2610,7 +2898,7 @@ const VendorDashboard = () => {
     prodPageSafe * PRODUCTS_PER_PAGE,
   );
 
-  // Añade una foto por su enlace (opción secundaria; máx. 3 por
+  // Añade una foto por su enlace (opción secundaria; máx. 5 por
   // producto). Solo URLs https: el backend rechaza base64 (data:)
   // con error 400.
   const addPhotoUrl = () => {
@@ -2620,8 +2908,8 @@ const VendorDashboard = () => {
       notify("Pega un enlace https válido", "error");
       return;
     }
-    if ((formP.images || []).length >= 3) {
-      notify("Máximo 3 fotos por producto", "error");
+    if ((formP.images || []).length >= 5) {
+      notify("Máximo 5 fotos por producto", "error");
       return;
     }
     setFormP((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
@@ -2940,6 +3228,35 @@ const VendorDashboard = () => {
                 />
               </div>
             </div>
+            <div className="p-4 bg-white rounded-xl border border-slate-200">
+              <PhotoUploader
+                images={formS.coverUrl ? [formS.coverUrl] : []}
+                onChange={(imgs) =>
+                  setFormS((prev) => ({ ...prev, coverUrl: imgs[0] || "" }))
+                }
+                max={1}
+                single
+                label="Foto de fondo de tu tienda"
+              />
+              <div className="mt-3 pt-3 border-t border-slate-100">
+                <label className="block text-[11px] text-slate-500 mb-1.5">
+                  ¿Prefieres pegar un enlace? (opcional)
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://... (enlace de la imagen)"
+                  value={formS.coverUrl || ""}
+                  onChange={(e) =>
+                    setFormS({ ...formS, coverUrl: e.target.value })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Si la quitas, la portada vuelve a ser la foto de tu primer
+                producto.
+              </p>
+            </div>
             <div className="p-4 bg-sky-50 rounded-2xl border border-slate-200 flex items-center justify-between mb-4">
               <div>
                 <h4 className="text-sm font-bold text-slate-900">Mercado Global</h4>
@@ -3085,27 +3402,42 @@ const VendorDashboard = () => {
             </div>
             <div className="flex gap-3">
               <div className="flex-1">
-                <Input
-                  label="Categoría"
-                  value={formP.category || ""}
-                  list="categorias-sugeridas"
-                  placeholder="Ej.: Alimentos"
-                  onChange={(e) =>
-                    setFormP({ ...formP, category: e.target.value })
-                  }
-                />
-                <datalist id="categorias-sugeridas">
-                  <option value="Alimentos" />
-                  <option value="Electrodomésticos" />
-                  <option value="Celulares" />
-                  <option value="Ropa y calzado" />
-                  <option value="Hogar" />
-                  <option value="Motos" />
-                  <option value="Belleza" />
-                  <option value="Salud" />
-                  <option value="Ferretería" />
-                  <option value="Juguetes" />
-                </datalist>
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 ml-1 uppercase tracking-wider">
+                    Categoría
+                  </label>
+                  <select
+                    value={
+                      PRODUCT_CATEGORIES.includes(formP.category || "")
+                        ? formP.category
+                        : formP.category
+                          ? "__otra__"
+                          : ""
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormP({
+                        ...formP,
+                        category:
+                          v === "__otra__" ? formP.category || "" : v,
+                      });
+                    }}
+                    className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all appearance-none"
+                  >
+                    <option value="">Sin categoría</option>
+                    {PRODUCT_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    {formP.category &&
+                      !PRODUCT_CATEGORIES.includes(formP.category) && (
+                        <option value="__otra__">
+                          {formP.category} (actual)
+                        </option>
+                      )}
+                  </select>
+                </div>
               </div>
               <div className="flex-1">
                 <Input
@@ -3124,7 +3456,7 @@ const VendorDashboard = () => {
                 onChange={(imgs) =>
                   setFormP((prev) => ({ ...prev, images: imgs }))
                 }
-                max={3}
+                max={5}
                 label="Fotos"
               />
               <div className="mt-4 pt-3 border-t border-slate-100">
@@ -3187,6 +3519,11 @@ const AUDIT_ACTION_LABELS = {
   license_grant: "Licencia concedida",
   store_suspend: "Tienda suspendida",
   store_unsuspend: "Tienda reactivada",
+  store_verify: "Tienda verificada",
+  store_unverify: "Verificación retirada",
+  featured_activate: "Destacado activado",
+  featured_remove: "Destacado retirado",
+  featured_prices_update: "Precios de destacados actualizados",
   store_delete: "Tienda eliminada",
   user_delete: "Usuario eliminado",
   user_password_reset: "Clave de vendedor reseteada",
@@ -3214,6 +3551,13 @@ const SuperAdminPanel = () => {
     logout,
     generateCode,
     toggleStore,
+    toggleStoreVerified,
+    adminFeatured,
+    fetchAdminFeatured,
+    activateFeatured,
+    fetchFeaturedPrices,
+    saveFeaturedPrices,
+    adminSearchProducts,
     deleteStore,
     updateAdminPass,
     deleteCode,
@@ -3250,6 +3594,74 @@ const SuperAdminPanel = () => {
     if (tab === "users") fetchAdminUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  // Destacados: productos vigentes, buscador para activar uno nuevo y
+  // precios por duración (NULL = sin definir; los fija Luis).
+  const [featuredQuery, setFeaturedQuery] = useState("");
+  const [featuredResults, setFeaturedResults] = useState([]);
+  const [featuredSearching, setFeaturedSearching] = useState(false);
+  const [featuredDays, setFeaturedDays] = useState(7);
+  const [pricesForm, setPricesForm] = useState(null);
+
+  // Al abrir la pestaña Destacados: carga los vigentes y los precios
+  // (el formulario se llena con lo que devuelve el backend).
+  useEffect(() => {
+    if (tab !== "featured") return;
+    fetchAdminFeatured();
+    fetchFeaturedPrices().then((prices) => {
+      const next = {
+        3: { cup: "", usd: "" },
+        7: { cup: "", usd: "" },
+        30: { cup: "", usd: "" },
+      };
+      for (const row of prices || []) {
+        if (next[row.duration_days]) {
+          next[row.duration_days] = {
+            cup:
+              row.price_cup === null || row.price_cup === undefined
+                ? ""
+                : String(row.price_cup),
+            usd:
+              row.price_usd === null || row.price_usd === undefined
+                ? ""
+                : String(row.price_usd),
+          };
+        }
+      }
+      setPricesForm(next);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const handleFeaturedSearch = async () => {
+    const q = featuredQuery.trim();
+    if (q.length < 2) {
+      setFeaturedResults([]);
+      return;
+    }
+    setFeaturedSearching(true);
+    const results = await adminSearchProducts(q);
+    setFeaturedResults(results);
+    setFeaturedSearching(false);
+  };
+
+  const handleActivateFeatured = async (productId) => {
+    const ok = await activateFeatured(productId, featuredDays);
+    if (ok)
+      setFeaturedResults((r) => r.filter((p) => p.id !== productId));
+  };
+
+  const handleSavePrices = async () => {
+    if (!pricesForm) return;
+    const prices = FEATURED_DURATIONS.map((d) => ({
+      duration_days: d,
+      price_cup:
+        pricesForm[d].cup === "" ? null : Number(pricesForm[d].cup),
+      price_usd:
+        pricesForm[d].usd === "" ? null : Number(pricesForm[d].usd),
+    }));
+    await saveFeaturedPrices(prices);
+  };
   const [editWhatsapp, setEditWhatsapp] = useState("");
   const [grantLicenseId, setGrantLicenseId] = useState("");
   const [adminContact, setAdminContact] = useState(superAdminContact);
@@ -3516,7 +3928,7 @@ const SuperAdminPanel = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {["stores", "users", "codes", "rates", "loc", "audit", "sec"].map((t) => (
+          {["stores", "featured", "users", "codes", "rates", "loc", "audit", "sec"].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -3524,17 +3936,19 @@ const SuperAdminPanel = () => {
             >
               {t === "stores"
                 ? "Tiendas"
-                : t === "users"
-                  ? "Usuarios"
-                  : t === "codes"
-                  ? "Licencias"
-                  : t === "rates"
-                    ? "Tasas"
-                    : t === "loc"
-                      ? "Ubicación"
-                      : t === "audit"
-                        ? "Auditoría"
-                        : "Seguridad"}
+                : t === "featured"
+                  ? "Destacados"
+                  : t === "users"
+                    ? "Usuarios"
+                    : t === "codes"
+                    ? "Licencias"
+                    : t === "rates"
+                      ? "Tasas"
+                      : t === "loc"
+                        ? "Ubicación"
+                        : t === "audit"
+                          ? "Auditoría"
+                          : "Seguridad"}
             </button>
           ))}
         </div>
@@ -3743,6 +4157,11 @@ const SuperAdminPanel = () => {
                   <div className="flex-1 min-w-0 w-full">
                     <h4 className="font-bold text-slate-800 text-lg">
                       {s.name}
+                      {s.is_verified && (
+                        <span className="ml-2 text-[11px] font-bold text-cyan-700 bg-cyan-600/10 border border-cyan-600/20 px-2 py-0.5 rounded-full align-middle">
+                          verificada
+                        </span>
+                      )}
                       {!s.is_public && (
                         <span className="ml-2 text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full align-middle">
                           oculta
@@ -3784,6 +4203,21 @@ const SuperAdminPanel = () => {
                       className="p-2.5 bg-cyan-600/10 text-cyan-700 rounded-xl hover:bg-cyan-600/20 transition-colors"
                     >
                       <Info size={18} />
+                    </button>
+                    <button
+                      onClick={() => toggleStoreVerified(s.id, s.is_verified)}
+                      title={
+                        s.is_verified
+                          ? "Quitar verificación"
+                          : "Verificar tienda"
+                      }
+                      className={`p-2.5 rounded-xl transition-colors border ${
+                        s.is_verified
+                          ? "bg-cyan-600 text-white border-cyan-600"
+                          : "bg-white text-slate-500 hover:text-slate-800 border-slate-200"
+                      }`}
+                    >
+                      <BadgeCheck size={18} />
                     </button>
                     <button
                       onClick={() => toggleStore(s.id, s.is_suspended)}
@@ -3833,6 +4267,182 @@ const SuperAdminPanel = () => {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {tab === "featured" && (
+          <div className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <h3 className="font-bold text-slate-900">
+                Anuncios destacados
+              </h3>
+              <p className="text-xs text-slate-500">
+                Un producto destacado aparece primero en su categoría y en
+                los resultados de búsqueda, con la marca "Destacado". El
+                vendedor lo pide por WhatsApp y tú lo activas aquí eligiendo
+                la duración; deja de ser destacado solo cuando vence la
+                fecha.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Buscar producto por nombre o tienda..."
+                  value={featuredQuery}
+                  onChange={(e) => setFeaturedQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleFeaturedSearch();
+                    }
+                  }}
+                  className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 outline-none transition-all placeholder:text-slate-500 text-sm"
+                />
+                <button
+                  onClick={handleFeaturedSearch}
+                  className="bg-cyan-600 text-white px-4 py-3 rounded-2xl text-sm font-bold hover:bg-cyan-500 transition-all shrink-0"
+                >
+                  Buscar
+                </button>
+              </div>
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="text-xs font-bold text-slate-500">
+                  Duración:
+                </span>
+                {FEATURED_DURATIONS.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setFeaturedDays(d)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                      featuredDays === d
+                        ? "bg-amber-500 text-white"
+                        : "bg-white text-slate-500 border border-slate-200"
+                    }`}
+                  >
+                    {d} días
+                  </button>
+                ))}
+              </div>
+              {featuredSearching && (
+                <p className="text-xs text-slate-500">Buscando...</p>
+              )}
+              {featuredResults.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 bg-sky-50 border border-slate-200 rounded-xl p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {cleanName(p.name)}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {p.store_name} · {p.category || "Sin categoría"} ·{" "}
+                      {priceLabel(p)}
+                    </p>
+                    {p.featured_until && isFeatured(p) && (
+                      <p className="text-xs text-amber-600 font-bold">
+                        Destacado hasta{" "}
+                        {new Date(p.featured_until).toLocaleDateString(
+                          "es-ES",
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleActivateFeatured(p.id)}
+                    className="shrink-0 bg-amber-500 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-amber-400 transition-all"
+                  >
+                    Destacar {featuredDays} días
+                  </button>
+                </div>
+              ))}
+            </Card>
+
+            <Card className="p-4 space-y-2">
+              <h3 className="font-bold text-slate-900">
+                Destacados vigentes ({adminFeatured.length})
+              </h3>
+              {adminFeatured.length === 0 && (
+                <p className="text-xs text-slate-500">
+                  Ningún producto destacado ahora mismo.
+                </p>
+              )}
+              {adminFeatured.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 bg-sky-50 border border-slate-200 rounded-xl p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {cleanName(p.name)}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {p.store_name} · {p.category || "Sin categoría"} ·{" "}
+                      {priceLabel(p)}
+                    </p>
+                    <p className="text-xs text-amber-600 font-bold">
+                      Hasta{" "}
+                      {new Date(p.featured_until).toLocaleDateString("es-ES")}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => activateFeatured(p.id, 0)}
+                    className="shrink-0 bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-sky-100 transition-all"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </Card>
+
+            <Card className="p-4 space-y-3">
+              <h3 className="font-bold text-slate-900">
+                Precios por duración
+              </h3>
+              <p className="text-xs text-slate-500">
+                Todavía sin definir: deja el campo vacío para no fijar
+                precio. Se le cobra al vendedor por WhatsApp, como las
+                licencias.
+              </p>
+              {pricesForm &&
+                FEATURED_DURATIONS.map((d) => (
+                  <div key={d} className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700 w-14 shrink-0">
+                      {d} días
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="CUP"
+                      value={pricesForm[d].cup}
+                      onChange={(e) =>
+                        setPricesForm({
+                          ...pricesForm,
+                          [d]: { ...pricesForm[d], cup: e.target.value },
+                        })
+                      }
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="USD"
+                      value={pricesForm[d].usd}
+                      onChange={(e) =>
+                        setPricesForm({
+                          ...pricesForm,
+                          [d]: { ...pricesForm[d], usd: e.target.value },
+                        })
+                      }
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                ))}
+              <Button onClick={handleSavePrices} className="w-full">
+                Guardar precios
+              </Button>
+            </Card>
           </div>
         )}
 
@@ -4300,6 +4910,24 @@ const SuperAdminPanel = () => {
             <h3 className="text-xl font-black text-slate-900 mb-6 uppercase tracking-widest">
               {selStore.name}
             </h3>
+            <button
+              onClick={async () => {
+                await toggleStoreVerified(selStore.id, selStore.is_verified);
+                setSelStore((s) =>
+                  s ? { ...s, is_verified: !s.is_verified } : s,
+                );
+              }}
+              className={`w-full mb-6 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                selStore.is_verified
+                  ? "bg-cyan-600 text-white"
+                  : "bg-white border border-slate-200 text-slate-600 hover:bg-sky-100"
+              }`}
+            >
+              <BadgeCheck size={18} />
+              {selStore.is_verified
+                ? "Vendedor verificado (toca para quitar)"
+                : "Marcar como vendedor verificado"}
+            </button>
             <Input
               label="Nuevo WhatsApp"
               value={editWhatsapp}
@@ -4414,9 +5042,17 @@ const NotFoundPage = () => {
 
 // --- CONFIGURACIÓN DE RUTAS ---
 const AppRoutes = () => {
+  const { pathname } = useLocation();
+  // La vista de tienda (/:slug) es independiente del mercado: sin
+  // ticker de tasas ni cabecera del mercado. Cualquier ruta de un solo
+  // segmento que no sea una ruta conocida es un slug de tienda.
+  const KNOWN_ROUTES = ["login", "register", "vendedor", "dashboard", "explorar"];
+  const segments = pathname.split("/").filter(Boolean);
+  const isStoreRoute =
+    segments.length === 1 && !KNOWN_ROUTES.includes(segments[0]);
   return (
     <>
-      <RatesBanner />
+      {!isStoreRoute && <RatesBanner />}
       <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<AuthScreen mode="login" />} />

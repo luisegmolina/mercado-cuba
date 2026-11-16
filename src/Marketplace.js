@@ -11,6 +11,7 @@ import {
   MapPin,
   Globe,
   AlertCircle,
+  BadgeCheck,
 } from "lucide-react";
 import {
   parseImages,
@@ -20,9 +21,13 @@ import {
   orderMessage,
   ProductDetailModal,
   cleanName,
-  plural,
   useGoBack,
   useCloseDetail,
+  PRODUCT_CATEGORIES,
+  FavHeart,
+  FeaturedBadge,
+  isFeatured,
+  plural,
 } from "./shared";
 
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
@@ -48,15 +53,23 @@ const GlobalMarketplace = () => {
   // /explorar?provincia=<id> = lista (pestaña Tiendas por defecto)
   //   &vista=productos = pestaña de productos
   //   &municipio=<id> = filtro por municipio (no añade historial)
+  //   &categoria=<nombre> = filtro por categoría (no añade historial)
+  //   &min=<n>&max=<n>&moneda=cup|usd = rango de precio (no añade historial)
   //   &producto=<id> = detalle del producto
   // Así el botón atrás (flecha o teléfono) retrocede de uno en uno:
   // detalle → lista → selector → inicio.
   const [searchParams, setSearchParams] = useSearchParams();
   const provinciaId = searchParams.get("provincia");
-  const view =
-    searchParams.get("vista") === "productos" ? "products" : "stores";
+  const vistaParam = searchParams.get("vista");
+  const view = vistaParam === "productos" ? "products" : "stores";
   const municipioId = searchParams.get("municipio");
   const productoId = searchParams.get("producto");
+  // Filtros de búsqueda de productos (viven en la URL, no añaden historial).
+  const categoryFilter = searchParams.get("categoria") || "";
+  const minPriceFilter = searchParams.get("min") || "";
+  const maxPriceFilter = searchParams.get("max") || "";
+  const currencyFilter =
+    searchParams.get("moneda") === "usd" ? "usd" : "cup";
   // id "all" = todas las provincias (endpoint /public/all-products).
   const selectedProvince = provinciaId
     ? {
@@ -129,12 +142,19 @@ const GlobalMarketplace = () => {
   // append=true añade la siguiente página ("Cargar más").
   // El backend devuelve { items, total } y acepta ?q= (búsqueda en el
   // servidor con trigram), así la búsqueda ya no se limita a lo cargado.
+  // Filtros del servidor: categoría, rango de precio (CUP o USD) y municipio.
   const loadProducts = async (
     province,
     startOffset = 0,
     append = false,
     query = filterText,
     municipality = selectedMunicipality,
+    filters = {
+      category: categoryFilter,
+      min: minPriceFilter,
+      max: maxPriceFilter,
+      currency: currencyFilter,
+    },
   ) => {
     setLoading(true);
     setLoadError(null);
@@ -142,10 +162,17 @@ const GlobalMarketplace = () => {
       const q = (query || "").trim();
       const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
       const mParam = municipality ? `&municipality=${municipality.id}` : "";
+      const cParam = filters.category
+        ? `&category=${encodeURIComponent(filters.category)}`
+        : "";
+      const priceParam =
+        filters.currency === "usd"
+          ? `${filters.min !== "" ? `&minUsd=${encodeURIComponent(filters.min)}` : ""}${filters.max !== "" ? `&maxUsd=${encodeURIComponent(filters.max)}` : ""}`
+          : `${filters.min !== "" ? `&minCup=${encodeURIComponent(filters.min)}` : ""}${filters.max !== "" ? `&maxCup=${encodeURIComponent(filters.max)}` : ""}`;
       const url =
         province.id === "all"
-          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}`
-          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}`;
+          ? `${API_URL}/public/all-products?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}${cParam}${priceParam}`
+          : `${API_URL}/public/products/province/${province.id}?limit=${PAGE_LIMIT}&offset=${startOffset}${qParam}${mParam}${cParam}${priceParam}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("No se pudieron cargar los productos");
       const data = await res.json();
@@ -212,7 +239,7 @@ const GlobalMarketplace = () => {
   // veces en el mismo arranque.
   const requestProducts = (force = false) => {
     if (!provinciaId) return;
-    const key = `${provinciaId}|${municipioId || ""}|${filterText}`;
+    const key = `${provinciaId}|${view}|${municipioId || ""}|${filterText}|${categoryFilter}|${minPriceFilter}|${maxPriceFilter}|${currencyFilter}`;
     if (!force && productsKeyRef.current === key) return;
     productsKeyRef.current = key;
     setProductsLoaded(true);
@@ -244,7 +271,7 @@ const GlobalMarketplace = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provinciaId]);
 
-  // Al cambiar a la pestaña Productos: carga la primera página si aún no.
+  // Al cambiar a la pestaña Productos: carga si aún no.
   useEffect(() => {
     if (!provinciaId || view !== "products" || productsLoaded) return;
     requestProducts();
@@ -265,6 +292,25 @@ const GlobalMarketplace = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [municipioId]);
 
+  // Al cambiar los filtros de búsqueda (categoría, precio, moneda):
+  // recarga con 500 ms de espera, para no pedir en cada tecla del precio.
+  // El primer arranque lo cubre el efecto de provincia.
+  const firstFiltersRun = useRef(true);
+  const filtersTimer = useRef(null);
+  useEffect(() => {
+    if (firstFiltersRun.current) {
+      firstFiltersRun.current = false;
+      return;
+    }
+    if (!provinciaId || view !== "products" || !productsLoaded) return;
+    if (filtersTimer.current) clearTimeout(filtersTimer.current);
+    filtersTimer.current = setTimeout(() => requestProducts(true), 500);
+    return () => {
+      if (filtersTimer.current) clearTimeout(filtersTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryFilter, minPriceFilter, maxPriceFilter, currencyFilter]);
+
   // Parámetro de producto que no está en lo cargado (enlace directo a una
   // página posterior): quítalo sin añadir historial.
   useEffect(() => {
@@ -282,6 +328,10 @@ const GlobalMarketplace = () => {
       municipio: null,
       vista: null,
       producto: null,
+      categoria: null,
+      min: null,
+      max: null,
+      moneda: null,
     });
   };
 
@@ -310,8 +360,13 @@ const GlobalMarketplace = () => {
   };
 
   // Cambiar de pestaña (Tiendas/Productos) es un paso del historial.
+  // Al cambiar, la nueva pestaña recarga su lista.
   const switchView = (next) => {
-    updateParams({ vista: next === "products" ? "productos" : null });
+    productsKeyRef.current = "";
+    setProductsLoaded(false);
+    updateParams({
+      vista: next === "products" ? "productos" : null,
+    });
   };
 
   // Volver al selector: un paso atrás (el selector es la vista anterior).
@@ -331,7 +386,8 @@ const GlobalMarketplace = () => {
     setFilterText(v);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      if (selectedProvince && view === "products")
+      if (!selectedProvince) return;
+      if (view === "products")
         loadProducts(selectedProvince, 0, false, v);
     }, 500);
   };
@@ -339,8 +395,8 @@ const GlobalMarketplace = () => {
   // Filtrado local (solo busca texto en los productos YA descargados de esa provincia)
   const filtered = (Array.isArray(products) ? products : []).filter(
     (p) =>
-      (p.name || "").toLowerCase().includes(filterText.toLowerCase()) ||
-      (p.store_name || "").toLowerCase().includes(filterText.toLowerCase()),
+      ((p.name || "").toLowerCase().includes(filterText.toLowerCase()) ||
+        (p.store_name || "").toLowerCase().includes(filterText.toLowerCase())),
   );
 
   // Tiendas filtradas por municipio y por el buscador (nombre, provincia
@@ -497,8 +553,66 @@ const GlobalMarketplace = () => {
         </div>
       </div>
 
+      {/* Filtros de búsqueda de productos (categoría y precio, en CUP o USD) */}
+      {view === "products" && (
+        <div className="px-4 pb-1 space-y-2">
+          <select
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+            value={categoryFilter}
+            onChange={(e) =>
+              updateParams({ categoria: e.target.value || null }, false)
+            }
+          >
+            <option value="">Todas las categorías</option>
+            {PRODUCT_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder="Precio mínimo"
+              value={minPriceFilter}
+              onChange={(e) =>
+                updateParams({ min: e.target.value || null }, false)
+              }
+              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+            />
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder="Precio máximo"
+              value={maxPriceFilter}
+              onChange={(e) =>
+                updateParams({ max: e.target.value || null }, false)
+              }
+              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+            />
+            <select
+              className="px-3 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm shrink-0"
+              value={currencyFilter}
+              onChange={(e) =>
+                updateParams(
+                  { moneda: e.target.value === "usd" ? "usd" : null },
+                  false,
+                )
+              }
+            >
+              <option value="cup">CUP</option>
+              <option value="usd">USD</option>
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Filtro por municipio (solo con provincia concreta) */}
-      {selectedProvince.id !== "all" && municipalities.length > 0 && (
+      {selectedProvince.id !== "all" &&
+        municipalities.length > 0 && (
         <div className="px-4 pb-1">
           <select
             className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
@@ -593,8 +707,14 @@ const GlobalMarketplace = () => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-slate-900 truncate">
+                      <h3 className="text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
                         {cleanName(s.name)}
+                        {s.is_verified && (
+                          <BadgeCheck
+                            size={15}
+                            className="text-cyan-600 shrink-0"
+                          />
+                        )}
                       </h3>
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                         <MapPin size={12} />{" "}
@@ -711,11 +831,15 @@ const GlobalMarketplace = () => {
                       <ImageIcon className="text-slate-700" />
                     </div>
                   )}
-                  {isOut && (
-                    <span className="absolute top-2 left-2 bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full z-10">
-                      Agotado
-                    </span>
-                  )}
+                  <FavHeart productId={p.id} />
+                  <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
+                    {isFeatured(p) && <FeaturedBadge />}
+                    {isOut && (
+                      <span className="bg-rose-600 text-white text-[11px] font-bold px-2 py-1 rounded-full">
+                        Agotado
+                      </span>
+                    )}
+                  </div>
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
@@ -796,7 +920,10 @@ const GlobalMarketplace = () => {
 
       {!loading && loadError !== "products" && filtered.length === 0 && (
         <div className="text-center py-20 opacity-50 px-6">
-          <ShoppingBag size={48} className="mx-auto mb-4 text-slate-400" />
+          <ShoppingBag
+            size={48}
+            className="mx-auto mb-4 text-slate-400"
+          />
           <p className="text-sm">
             {filterText ? (
               <>
