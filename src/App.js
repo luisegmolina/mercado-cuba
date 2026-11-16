@@ -2092,15 +2092,20 @@ const StoreFrontend = () => {
   // Favoritos: solo de ESTA tienda (los guardados en este teléfono).
   const [favoriteIds] = useFavorites();
   const [showFavorites, setShowFavorites] = useState(false);
+  // Filtros de la vista Todos: categoría y rango de precio (CUP o USD).
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState("cup");
   const closeDetail = useCloseDetail();
   const [searchParams, setSearchParams] = useSearchParams();
   const productoId = searchParams.get("producto");
 
-  // Al cambiar de tienda, de búsqueda o de filtro de favoritos, se
-  // vuelve a mostrar desde arriba.
+  // Al cambiar de tienda, de búsqueda, de filtro de favoritos o de
+  // filtros de precio/categoría, se vuelve a mostrar desde arriba.
   useEffect(() => {
     setVisibleCount(12);
-  }, [slug, filter, showFavorites]);
+  }, [slug, filter, showFavorites, categoryFilter, minPrice, maxPrice, currencyFilter]);
 
   useEffect(() => {
     setLoadingStore(true);
@@ -2187,11 +2192,27 @@ const StoreFrontend = () => {
   const storeFavoriteCount = visibleProducts.filter((p) =>
     favoriteIds.includes(p.id),
   ).length;
-  const filtered = visibleProducts.filter(
-    (p) =>
-      (!showFavorites || favoriteIds.includes(p.id)) &&
-      (p.name || "").toLowerCase().includes(filter.toLowerCase()),
-  );
+  // Categorías que de verdad tiene esta tienda (para el filtro).
+  const storeCategories = [...new Set(
+    visibleProducts.map((p) => p.category).filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, "es"));
+  const hasActiveFilters =
+    filter !== "" ||
+    categoryFilter !== "" ||
+    minPrice !== "" ||
+    maxPrice !== "";
+  const filtered = visibleProducts.filter((p) => {
+    if (showFavorites && !favoriteIds.includes(p.id)) return false;
+    if (!showFavorites) {
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      const price = Number(
+        currencyFilter === "usd" ? p.price_usd : p.price_cup,
+      ) || 0;
+      if (minPrice !== "" && price < Number(minPrice)) return false;
+      if (maxPrice !== "" && price > Number(maxPrice)) return false;
+    }
+    return (p.name || "").toLowerCase().includes(filter.toLowerCase());
+  });
   const provinceName = store.province_name || store.province || "";
   // Ubicación completa: "Municipio, Provincia" cuando hay municipio.
   const locationName = [store.municipality_name, provinceName]
@@ -2342,6 +2363,51 @@ const StoreFrontend = () => {
           </button>
         </div>
       </div>
+      {/* Filtros de la vista Todos: categoría y rango de precio. */}
+      {!showFavorites && (
+        <div className="px-4 pb-2 space-y-2">
+          <select
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm"
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+          >
+            <option value="">Todas las categorías</option>
+            {storeCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder="Precio mínimo"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+            />
+            <input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder="Precio máximo"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/30 placeholder:text-slate-500"
+            />
+            <select
+              className="px-3 py-3 rounded-2xl border border-slate-200 bg-white text-slate-900 outline-none appearance-none text-sm shrink-0"
+              value={currencyFilter}
+              onChange={(e) => setCurrencyFilter(e.target.value)}
+            >
+              <option value="cup">CUP</option>
+              <option value="usd">USD</option>
+            </select>
+          </div>
+        </div>
+      )}
       {filtered.length === 0 && (
         <div className="text-center py-16 px-6">
           {showFavorites ? (
@@ -2362,8 +2428,8 @@ const StoreFrontend = () => {
                 className="mx-auto mb-4 text-slate-400"
               />
               <p className="text-sm text-slate-500">
-                {filter
-                  ? "No encontramos eso por aquí, prueba con otra palabra."
+                {hasActiveFilters
+                  ? "No encontramos eso por aquí, prueba con otra palabra o cambia los filtros."
                   : "Esta tienda todavía no tiene productos a la venta."}
               </p>
             </>
