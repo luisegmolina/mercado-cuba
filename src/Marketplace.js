@@ -655,7 +655,7 @@ const GlobalMarketplace = () => {
             }`}
           >
             <Store size={14} /> Tiendas
-            {stores.length > 0 ? ` (${stores.length})` : ""}
+            {filteredStores.length > 0 ? ` (${filteredStores.length})` : ""}
           </button>
           <button
             onClick={() => switchView("products")}
@@ -717,12 +717,14 @@ const GlobalMarketplace = () => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
-                        {cleanName(s.name)}
+                      <h3 className="text-sm font-bold text-slate-900 flex items-start gap-1.5">
+                        <span className="line-clamp-2">
+                          {cleanName(s.name)}
+                        </span>
                         {s.is_verified && (
                           <BadgeCheck
                             size={15}
-                            className="text-cyan-600 shrink-0"
+                            className="text-cyan-600 shrink-0 mt-0.5"
                           />
                         )}
                       </h3>

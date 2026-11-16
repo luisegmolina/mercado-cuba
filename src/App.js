@@ -2321,7 +2321,7 @@ const StoreFrontend = () => {
             />
           </div>
           <div className="min-w-0">
-            <h2 className="font-display font-extrabold text-2xl text-white leading-tight truncate">
+            <h2 className="font-display font-extrabold text-2xl text-white leading-tight line-clamp-2">
               {cleanName(store.name)}
             </h2>
             {locationName && (
