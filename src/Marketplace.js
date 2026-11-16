@@ -28,6 +28,7 @@ import {
   FeaturedBadge,
   isFeatured,
   plural,
+  SiteFooter,
 } from "./shared";
 
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
@@ -511,6 +512,7 @@ const GlobalMarketplace = () => {
         >
           <ChevronLeft size={16} /> Volver al inicio
         </button>
+        <SiteFooter />
       </div>
     );
   }
@@ -1002,6 +1004,7 @@ const GlobalMarketplace = () => {
           onClose={closeDetail}
         />
       )}
+      <SiteFooter />
     </div>
   );
 };

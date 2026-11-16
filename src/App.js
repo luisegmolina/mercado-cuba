@@ -22,6 +22,7 @@ import {
   ConfirmModal,
   orderMessage,
   ProductDetailModal,
+  SiteFooter,
   PhotoUploader,
   CUBA_HERO,
   pickRandomHero,
@@ -44,7 +45,6 @@ import {
   BrowserRouter,
   Routes,
   Route,
-  Link,
   Navigate,
   useNavigate,
   useParams,
@@ -98,7 +98,6 @@ import {
 
 /** * --- CONFIGURACIÓN DE RED Y CONSTANTES ---
  * API_URL: Punto de enlace con el servidor backend en Render.
- * APP_NAME: Nombre comercial de la plataforma.
  */
 const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 
@@ -109,8 +108,6 @@ const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 // gratis de Render tarda ~50 s en arrancar en frío); el fetch de abajo
 // solo lo actualiza si el backend devuelve otro número.
 const FALLBACK_ADMIN_CONTACT = "18063168743";
-
-const APP_NAME = "Mercado Cuba";
 
 // Carpeta de Mega con el APK de Android (v1.0.1 y siguientes). Enlace fijo:
 // cada versión nueva se sube a esta misma carpeta mientras Play aprueba.
@@ -2081,49 +2078,7 @@ const LandingPage = () => {
         )}
 
         {/* --- PIE --- */}
-        <footer className="text-center space-y-2 pt-6 pb-4 border-t border-sky-100">
-          <p className="text-xs text-slate-500 font-bold">
-            {APP_NAME} — de cubanos para cubanos 🇨🇺
-          </p>
-          <p className="text-xs text-slate-400">
-            Fotos de portada:{" "}
-            <a
-              href="https://commons.wikimedia.org/"
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-slate-500"
-            >
-              Wikimedia Commons
-            </a>{" "}
-            (licencia libre)
-          </p>
-          {superAdminContact ? (
-            <a
-              href={licenseUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-emerald-600 hover:text-emerald-600 font-bold inline-flex items-center gap-1"
-            >
-              <MessageCircle size={12} /> Escríbenos por WhatsApp
-            </a>
-          ) : (
-            <p className="text-xs text-slate-400">Cargando contacto...</p>
-          )}
-          <p className="space-x-3">
-            <Link
-              to="/privacidad"
-              className="text-xs text-slate-400 hover:text-slate-500"
-            >
-              Privacidad
-            </Link>
-            <Link
-              to="/admin/login"
-              className="text-xs text-slate-400 hover:text-slate-500"
-            >
-              Acceso administrador
-            </Link>
-          </p>
-        </footer>
+        <SiteFooter contact={superAdminContact} />
       </div>
       {showManual && (
         <ManualModal
@@ -2573,7 +2528,7 @@ const StoreFrontend = () => {
           {visibleCount < filtered.length && (
             <button
               onClick={() => setVisibleCount((c) => c + 12)}
-              className="bg-white text-slate-700 px-6 py-3 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
+              className="bg-white text-slate-700 px-6 py-3 lg:py-2.5 rounded-2xl text-sm font-bold border border-slate-200 hover:bg-sky-100 transition-all"
             >
               Cargar más
             </button>
@@ -2587,6 +2542,7 @@ const StoreFrontend = () => {
           onClose={closeDetail}
         />
       )}
+      <SiteFooter />
     </div>
   );
 };
@@ -2784,6 +2740,7 @@ const AuthScreen = ({ mode }) => {
           </div>
         </Card>
       </div>
+      <SiteFooter contact={superAdminContact} />
     </div>
   );
 };

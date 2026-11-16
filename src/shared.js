@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams, Link } from "react-router-dom";
 import {
   X,
   MessageCircle,
@@ -669,6 +669,91 @@ export function useCloseDetail() {
     }
   }, [navigate, searchParams, setSearchParams]);
 }
+
+// Pie de la web (marca, créditos de fotos, contacto y enlaces legales).
+// Se usa en la portada, las tiendas, Explorar y el login/registro: el
+// contacto del administrador se recibe por prop cuando la página ya lo
+// tiene, y si no, se pide a /api/public/config (con el número de siempre
+// como respaldo, igual que hace el contexto de la app).
+const FALLBACK_ADMIN_CONTACT = "18063168743";
+let cachedAdminContact = null;
+export const SiteFooter = ({ contact }) => {
+  const [adminContact, setAdminContact] = useState(
+    contact || cachedAdminContact || FALLBACK_ADMIN_CONTACT,
+  );
+  useEffect(() => {
+    if (contact) {
+      setAdminContact(contact);
+      return;
+    }
+    if (cachedAdminContact) {
+      setAdminContact(cachedAdminContact);
+      return;
+    }
+    let cancelled = false;
+    fetch(`${RATES_API_URL}/public/config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.whatsapp) {
+          cachedAdminContact = d.whatsapp;
+          setAdminContact(d.whatsapp);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contact]);
+  const licenseUrl = adminContact
+    ? waLink(adminContact, "Hola, solicito una licencia")
+    : null;
+  return (
+    <footer className="w-full text-center space-y-2 pt-6 pb-4 px-4 border-t border-sky-100">
+      <p className="text-xs text-slate-500 font-bold">
+        Mercado Cuba — de cubanos para cubanos 🇨🇺
+      </p>
+      <p className="text-xs text-slate-400">
+        Fotos de portada:{" "}
+        <a
+          href="https://commons.wikimedia.org/"
+          target="_blank"
+          rel="noreferrer"
+          className="underline hover:text-slate-500"
+        >
+          Wikimedia Commons
+        </a>{" "}
+        (licencia libre)
+      </p>
+      {adminContact ? (
+        <a
+          href={licenseUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-emerald-600 hover:text-emerald-600 font-bold inline-flex items-center gap-1"
+        >
+          <MessageCircle size={12} /> Escríbenos por WhatsApp
+        </a>
+      ) : (
+        <p className="text-xs text-slate-400">Cargando contacto...</p>
+      )}
+      <p className="space-x-3">
+        <Link
+          to="/privacidad"
+          className="text-xs text-slate-400 hover:text-slate-500"
+        >
+          Privacidad
+        </Link>
+        <Link
+          to="/admin/login"
+          className="text-xs text-slate-400 hover:text-slate-500"
+        >
+          Acceso administrador
+        </Link>
+      </p>
+    </footer>
+  );
+};
 
 export const ProductDetailModal = ({ product, store, onClose }) => {
   const navigate = useNavigate();
