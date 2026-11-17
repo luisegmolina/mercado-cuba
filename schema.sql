@@ -6,10 +6,9 @@
 -- (NO de un pg_dump de Neon): si algún detalle difiere de producción,
 -- manda lo que diga Neon. Verificado en Neon el 2026-11-17: la tabla
 -- stores tiene exactamente las columnas de aquí (sin password_hash ni
--- is_public_market) y existen los índices trigram de abajo. Sin
--- verificar: los valores exactos del CHECK de product_images y del
--- status de store_licenses (solo 'active' está confirmado en
--- las consultas).
+-- is_public_market), existen los índices trigram de abajo y los CHECK
+-- de product_images y store_licenses son los que pone este archivo.
+-- Queda sin verificar algún largo de VARCHAR y algún default menor.
 -- Las tablas admin_config y activation_codes son del esquema viejo y
 -- server.js ya no las usa: no están aquí. Las tablas *_old tampoco.
 -- ==================================================================
@@ -96,8 +95,8 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS product_images (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    url TEXT NOT NULL CHECK (url NOT ILIKE 'data:%'),
-    position INTEGER NOT NULL,
+    url TEXT NOT NULL CHECK (url LIKE 'http%' AND url NOT ILIKE 'data:%'),
+    position INTEGER NOT NULL CHECK (position >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (product_id, position)
 );
@@ -120,7 +119,7 @@ CREATE TABLE IF NOT EXISTS store_licenses (
     license_id UUID NOT NULL REFERENCES licenses(id) ON DELETE CASCADE,
     store_id UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'revoked')),
     valid_until TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
