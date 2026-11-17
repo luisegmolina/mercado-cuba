@@ -663,7 +663,10 @@ function eltoqueRange() {
 }
 
 async function refreshRatesFromElToque() {
-  if (!ELTOQUE_API_KEY) return { ok: false, reason: "sin clave" };
+  if (!ELTOQUE_API_KEY) {
+    console.warn("[tasas] elTOQUE: falta ELTOQUE_API_KEY");
+    return { ok: false, reason: "sin clave" };
+  }
   try {
     const { from, to } = eltoqueRange();
     const url = `${ELTOQUE_API_URL}?date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}`;
@@ -2699,6 +2702,9 @@ app.listen(PORT, () => console.log(`Backend CubaMarket en puerto ${PORT}`));
 
 // Tasas: una actualización al arrancar (10 s después, para no pelear con
 // el arranque) y otra cada 60 min. Sin clave, no hace nada.
+console.log(
+  `[tasas] clave elTOQUE: ${ELTOQUE_API_KEY ? "configurada" : "FALTA"}`,
+);
 setTimeout(() => {
   refreshRatesFromElToque();
 }, 10000);
