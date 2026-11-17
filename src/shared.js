@@ -328,17 +328,19 @@ export const timeAgo = (iso) => {
 };
 
 // --- TASA DE CAMBIO (banner del header) ---
-// La tasa la pone el admin desde su panel (fuente: elTOQUE, mercado
-// informal). Si no hay tasas guardadas o el servidor no responde, el
-// banner no se muestra.
-const RATES_API_URL = "https://mercado-backend-o8vl.onrender.com/api";
+// La tasa se actualiza sola desde la API oficial de elTOQUE (cada 60 min
+// + al arrancar). Si no hay tasas guardadas o el servidor no responde,
+// el banner no se muestra.
+// URL única de la API: la usan App.js y Marketplace.js (antes estaba
+// repetida en los tres archivos).
+export const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 const ELTOQUE_RATES_URL = "https://eltoque.com/tasas-de-cambio-cuba";
 
 export const RatesBanner = () => {
   const [rates, setRates] = useState(null);
   useEffect(() => {
     let alive = true;
-    fetch(`${RATES_API_URL}/public/rates`)
+    fetch(`${API_URL}/public/rates`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (alive && d && Array.isArray(d.rates) && d.rates.length > 0)
@@ -691,7 +693,7 @@ export const SiteFooter = ({ contact }) => {
       return;
     }
     let cancelled = false;
-    fetch(`${RATES_API_URL}/public/config`)
+    fetch(`${API_URL}/public/config`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!cancelled && d?.whatsapp) {

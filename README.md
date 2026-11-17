@@ -21,7 +21,7 @@ WhatsApp. También existe como app Android (Capacitor, paquete
 
 | Servicio | Para qué |
 | --- | --- |
-| Render (plan gratis) | Alojamiento de la web (Static Site) y del backend (Web Service `mercado-backend`). El plan gratis duerme el backend a los 15 min sin tráfico; un keep-alive externo lo mantiene despierto. |
+| Render (plan gratis) | Alojamiento de la web (Static Site) y del backend (Web Service `mercado-backend-o8vl`). El plan gratis duerme el backend a los 15 min sin tráfico; un keep-alive externo lo mantiene despierto. |
 | Neon (plan gratis) | Base de datos PostgreSQL (`mercado_cuba`). El esquema canónico está en `schema.sql`. |
 | Cloudinary | Fotos de productos, logo y portada de las tiendas (preset sin firmar `mercado-cuba`). |
 | API de elTOQUE | Tasas USD/EUR/MLC del mercado informal, actualizadas solas cada hora. CAD/MXN/ZELLE/CLA se ponen a mano desde el panel admin. |
@@ -42,15 +42,18 @@ WhatsApp. También existe como app Android (Capacitor, paquete
 | `ELTOQUE_ORIGIN` | Origen registrado en elTOQUE para la clave. Por defecto `https://mercado-cuba.pages.dev`. |
 | `NODE_VERSION` | `20` (definida en `render.yaml`). |
 
-El frontend no usa variables: la URL de la API está en el código
-(`API_URL` en `src/shared.js`).
+El frontend no usa variables: la URL de la API es una sola constante
+(`API_URL` en `src/shared.js`, importada por App.js y Marketplace.js).
+Ojo: en desarrollo local el frontend también apunta a la API de
+producción; no hay API local salvo que se levante el backend a mano y
+se cambie esa constante temporalmente (sin commitear el cambio).
 
 ## Desarrollo local
 
 ```bash
 npm install
-npm start        # frontend en http://localhost:3000
-node server.js   # backend (necesita DATABASE_URL, JWT_SECRET y SUPER_ADMIN_PASS)
+npm start                 # backend (node server.js) en http://localhost:3001
+npx react-scripts start   # frontend en http://localhost:3000
 ```
 
 Pruebas (helpers de teléfono y precios):

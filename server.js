@@ -81,6 +81,10 @@ const createSlug = (name) => {
     .toString()
     .toLowerCase()
     .trim()
+    // Quita las tildes antes de filtrar: sin esto "Cafetería" da
+    // "cafetera" (la í se borra) en vez de "cafeteria".
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "-")
     .replace(/[^\w-]+/g, "")
     .replace(/--+/g, "-");
@@ -781,9 +785,16 @@ async function refreshRatesFromElToque() {
 // Candado del refresco perezoso: una sola actualización en vuelo.
 // Sin esto, varias lecturas con datos viejos lanzarían una petición
 // a elTOQUE cada una y gastarían el límite de la API.
+// Enfriamiento: si elTOQUE falla (límite o caída), cada visita con
+// datos viejos volvería a intentarlo; tras cada intento (falle o no)
+// se esperan 10 min antes del siguiente.
 let ratesRefreshPromise = null;
+let lastRatesAttemptAt = 0;
+const RATES_RETRY_COOLDOWN_MS = 10 * 60 * 1000;
 const maybeRefreshRates = () => {
   if (ratesRefreshPromise) return;
+  if (Date.now() - lastRatesAttemptAt < RATES_RETRY_COOLDOWN_MS) return;
+  lastRatesAttemptAt = Date.now();
   ratesRefreshPromise = refreshRatesFromElToque().finally(() => {
     ratesRefreshPromise = null;
   });
@@ -920,13 +931,17 @@ app.get("/api/store/:identifier", async (req, res, next) => {
   try {
     const { identifier } = req.params;
     const isUUID = UUID_REGEX.test(identifier);
+    // Columnas explícitas (nunca s.*): si la tabla ganara una columna
+    // sensible, el endpoint público no la expondría. La lista es
+    // exactamente lo que devuelve hoy la tienda pública.
+    const STORE_COLUMNS = `s.id, s.owner_id, s.name, s.slug, s.description, s.whatsapp, s.logo_url, s.cover_url, s.is_public, s.is_suspended, s.is_verified, s.created_at, s.updated_at, s.province_id, s.municipality_id`;
     const query = isUUID
-      ? `SELECT s.*, u.owner_name, p.name AS province_name, m.name AS municipality_name,
+      ? `SELECT ${STORE_COLUMNS}, u.owner_name, p.name AS province_name, m.name AS municipality_name,
                 (SELECT valid_until FROM store_licenses WHERE store_id = s.id ORDER BY valid_until DESC LIMIT 1) AS license_valid_until
          FROM stores s JOIN users u ON u.id = s.owner_id
          LEFT JOIN provinces p ON p.id = s.province_id
          LEFT JOIN municipalities m ON m.id = s.municipality_id WHERE s.id = $1`
-      : `SELECT s.*, u.owner_name, p.name AS province_name, m.name AS municipality_name,
+      : `SELECT ${STORE_COLUMNS}, u.owner_name, p.name AS province_name, m.name AS municipality_name,
                 (SELECT valid_until FROM store_licenses WHERE store_id = s.id ORDER BY valid_until DESC LIMIT 1) AS license_valid_until
          FROM stores s JOIN users u ON u.id = s.owner_id
          LEFT JOIN provinces p ON p.id = s.province_id

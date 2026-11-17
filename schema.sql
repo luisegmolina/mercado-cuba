@@ -71,10 +71,10 @@ CREATE TABLE IF NOT EXISTS stores (
     is_public BOOLEAN NOT NULL DEFAULT TRUE,
     is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
     is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-    is_public_market BOOLEAN NOT NULL DEFAULT FALSE,
     province_id UUID REFERENCES provinces(id),
     municipality_id UUID REFERENCES municipalities(id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 6. Productos (precio dual CUP/USD)

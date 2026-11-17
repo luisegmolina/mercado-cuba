@@ -10,6 +10,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import GlobalMarketplace from "./Marketplace"; // Asegúrate de que el nombre coincida
 import "./index.css";
 import {
+  API_URL,
   parseImages,
   SafeImage,
   normalizePhone,
@@ -95,11 +96,6 @@ import {
   //Camera,
   Share2,
 } from "lucide-react";
-
-/** * --- CONFIGURACIÓN DE RED Y CONSTANTES ---
- * API_URL: Punto de enlace con el servidor backend en Render.
- */
-const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 
 // WhatsApp de soporte/licencias. Es el mismo número que devuelve
 // GET /api/public/config. Se usa como valor inicial para que el botón

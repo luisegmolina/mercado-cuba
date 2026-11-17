@@ -14,6 +14,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import {
+  API_URL,
   parseImages,
   formatPrice,
   priceLabel,
@@ -31,7 +32,6 @@ import {
   SiteFooter,
 } from "./shared";
 
-const API_URL = "https://mercado-backend-o8vl.onrender.com/api";
 const PAGE_LIMIT = 20;
 
 const GlobalMarketplace = () => {
