@@ -631,6 +631,95 @@ app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
   }
 });
 
+// --- ACTUALIZACIÓN AUTOMÁTICA DE TASAS (API oficial de elTOQUE) ---
+// La clave vive solo como variable de entorno ELTOQUE_API_KEY (Render);
+// sin clave, no hace nada y las tasas manuales del panel admin siguen
+// valiendo. Cada 60 min pide la TRMI más reciente (ventana móvil de 48 h,
+// que es lo que exige la API) y actualiza las monedas que la API trae
+// (USD, EUR vía ECU, MLC; CAD/MXN/ZELLE/CLA solo si vienen). Si la API
+// falla o no trae una moneda, se conserva el valor guardado. No modifica
+// los datos: solo copia la mediana publicada, con fuente 'elTOQUE'.
+const ELTOQUE_API_URL = "https://tasas.eltoque.com/v1/trmi";
+const ELTOQUE_API_KEY = process.env.ELTOQUE_API_KEY || "";
+// Origen registrado en elTOQUE para esta clave (la API lo puede validar).
+const ELTOQUE_ORIGIN = "https://mercado-cuba.pages.dev";
+const ELTOQUE_MAP = {
+  USD: "USD",
+  ECU: "EUR",
+  MLC: "MLC",
+  CAD: "CAD",
+  MXN: "MXN",
+  ZELLE: "ZELLE",
+  CLA: "CLA",
+};
+
+function eltoqueRange() {
+  // "YYYY-MM-DD HH:MM:SS" en UTC; la API devuelve la tasa más reciente
+  // dentro de la ventana.
+  const fmt = (d) => d.toISOString().slice(0, 19).replace("T", " ");
+  const to = new Date();
+  const from = new Date(to.getTime() - 48 * 60 * 60 * 1000);
+  return { from: fmt(from), to: fmt(to) };
+}
+
+async function refreshRatesFromElToque() {
+  if (!ELTOQUE_API_KEY) return { ok: false, reason: "sin clave" };
+  try {
+    const { from, to } = eltoqueRange();
+    const url = `${ELTOQUE_API_URL}?date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${ELTOQUE_API_KEY}`,
+        Origin: ELTOQUE_ORIGIN,
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return { ok: false, reason: `HTTP ${res.status}` };
+    const data = await res.json();
+    const tasas =
+      data && data.tasas && typeof data.tasas === "object" ? data.tasas : null;
+    if (!tasas) return { ok: false, reason: "sin tasas" };
+    const clean = [];
+    for (const [code, value] of Object.entries(tasas)) {
+      const currency = ELTOQUE_MAP[String(code).toUpperCase()];
+      const rate = Number(value);
+      if (!currency || !Number.isFinite(rate) || rate <= 0) continue;
+      clean.push({ currency, rate_cup: rate });
+    }
+    if (clean.length === 0)
+      return { ok: false, reason: "sin monedas válidas" };
+    for (const r of clean) {
+      await pool.query(
+        `INSERT INTO exchange_rates (currency, rate_cup, source, updated_at)
+         VALUES ($1, $2, 'elTOQUE', now())
+         ON CONFLICT (currency) DO UPDATE SET rate_cup = EXCLUDED.rate_cup, source = 'elTOQUE', updated_at = now()`,
+        [r.currency, r.rate_cup],
+      );
+    }
+    console.log(
+      `[tasas] elTOQUE: ${clean.map((r) => `${r.currency}=${r.rate_cup}`).join(", ")}`,
+    );
+    return { ok: true, rates: clean };
+  } catch (err) {
+    console.warn(`[tasas] elTOQUE falló: ${err.message}`);
+    return { ok: false, reason: err.message };
+  }
+}
+
+// Forzar la actualización desde el panel admin (superadmin). Sirve para
+// comprobar que la clave funciona sin esperar a la hora programada.
+app.post("/api/admin/rates/refresh", authenticateToken, async (req, res) => {
+  if (req.user.role !== "superadmin")
+    return res.status(403).json({ error: "Admin" });
+  const result = await refreshRatesFromElToque();
+  if (!result.ok) return res.status(502).json(result);
+  const rows = await pool.query(
+    `SELECT currency, rate_cup, source, updated_at FROM exchange_rates
+     ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 WHEN 'CAD' THEN 3 WHEN 'MXN' THEN 4 WHEN 'ZELLE' THEN 5 WHEN 'CLA' THEN 6 ELSE 7 END`,
+  );
+  res.json({ ...result, rates: rows.rows });
+});
+
 // Endpoint para obtener la vitrina global (con conteo total y ?q=)
 // Filtros: ?category, ?minCup, ?maxCup, ?minUsd, ?maxUsd, ?ids, ?municipality
 app.get("/api/public/all-products", async (req, res, next) => {
@@ -2607,3 +2696,12 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => console.log(`Backend CubaMarket en puerto ${PORT}`));
+
+// Tasas: una actualización al arrancar (10 s después, para no pelear con
+// el arranque) y otra cada 60 min. Sin clave, no hace nada.
+setTimeout(() => {
+  refreshRatesFromElToque();
+}, 10000);
+setInterval(() => {
+  refreshRatesFromElToque();
+}, 60 * 60 * 1000);
