@@ -1,70 +1,86 @@
-# Getting Started with Create React App
+# Mercado Cuba
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Marketplace web para comprar y vender en Cuba: las tiendas publican
+productos con precio en CUP y USD, y los pedidos se cierran por
+WhatsApp. También existe como app Android (Capacitor, paquete
+`com.luis.mercadocuba`).
 
-## Available Scripts
+- Web: https://mercado-cuba.onrender.com
+- API: https://mercado-backend-o8vl.onrender.com/api
+- Política de privacidad: https://mercado-cuba.onrender.com/privacidad
 
-In the project directory, you can run:
+## Stack
 
-### `npm start`
+- Frontend: React 19 + react-router-dom 7 (Create React App), Tailwind.
+- Backend: Node + Express 5 (`server.js`), PostgreSQL (`pg`).
+- Auth: JWT (HS256) + bcrypt. Contraseña mínima de 10 caracteres.
+- El `postbuild` genera una página por tienda con etiquetas Open Graph
+  (`scripts/prerender-stores.js`) para la vista previa de WhatsApp.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Servicios
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+| Servicio | Para qué |
+| --- | --- |
+| Render (plan gratis) | Alojamiento de la web (Static Site) y del backend (Web Service `mercado-backend`). El plan gratis duerme el backend a los 15 min sin tráfico; un keep-alive externo lo mantiene despierto. |
+| Neon (plan gratis) | Base de datos PostgreSQL (`mercado_cuba`). El esquema canónico está en `schema.sql`. |
+| Cloudinary | Fotos de productos, logo y portada de las tiendas (preset sin firmar `mercado-cuba`). |
+| API de elTOQUE | Tasas USD/EUR/MLC del mercado informal, actualizadas solas cada hora. CAD/MXN/ZELLE/CLA se ponen a mano desde el panel admin. |
+| GitHub | Código. Cada push a `main` despliega solo la web y el backend en Render. |
+| WhatsApp | Los pedidos y el contacto con cada tienda van por wa.me; la web no cobra ni procesa pagos. |
+| Mega | Carpeta con el APK para descargar en Cuba (la web enlaza a ella desde la portada). |
+| Cloudflare Pages | Solo redirige `mercado-cuba.pages.dev` a la web de Render. Cloudflare bloquea Cuba, por eso la web vive en Render. |
 
-### `npm test`
+## Variables de entorno (backend, en Render)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+| Variable | Qué es |
+| --- | --- |
+| `DATABASE_URL` | Cadena de conexión de Neon (pooled). |
+| `DB_SSL` | `true`. |
+| `JWT_SECRET` | Secreto para firmar los tokens. Rotarlo cierra todas las sesiones. |
+| `SUPER_ADMIN_PASS` | Contraseña inicial del súper admin (solo se usa si la tabla `admins` está vacía; después se cambia desde el panel). |
+| `ELTOQUE_API_KEY` | Clave de la API de tasas de elTOQUE. Sin ella, las tasas quedan en el último valor guardado o en lo que ponga el admin. |
+| `ELTOQUE_ORIGIN` | Origen registrado en elTOQUE para la clave. Por defecto `https://mercado-cuba.pages.dev`. |
+| `NODE_VERSION` | `20` (definida en `render.yaml`). |
 
-### `npm run build`
+El frontend no usa variables: la URL de la API está en el código
+(`API_URL` en `src/shared.js`).
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Desarrollo local
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm install
+npm start        # frontend en http://localhost:3000
+node server.js   # backend (necesita DATABASE_URL, JWT_SECRET y SUPER_ADMIN_PASS)
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Pruebas (helpers de teléfono y precios):
 
-### `npm run eject`
+```bash
+CI=true npm test -- --watchAll=false
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Build de producción (con `CI=true` los avisos de ESLint son errores):
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+CI=true npm run build
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Despliegue
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Push a `main` → Render reconstruye y despliega la web y el backend
+(~2 min). Comprobar el estado con `GET /api/health` (`{"ok":true}`) y
+que la web sirva el nuevo paquete. `render.yaml` es solo la
+declaración del servicio; el `healthCheckPath` es `/api/health`.
 
-## Learn More
+## App Android
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+npm run build
+npx cap sync android
+# en android/: ./gradlew bundleRelease  (JDK 21; el keystore vive
+# fuera del repo, en la máquina que firma)
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+La app carga la web en vivo, así que los cambios web no necesitan
+nueva versión. Solo un cambio de `capacitor.config.ts` o de plugins
+exige reconstruirla.

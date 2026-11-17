@@ -86,6 +86,15 @@ const createSlug = (name) => {
     .replace(/--+/g, "-");
 };
 
+// Escapa los comodines de LIKE (% _ \) en texto del usuario: sin esto,
+// buscar "%" devuelve todo el catálogo. Postgres usa "\" como escape
+// por defecto en LIKE, así que basta con escapar el valor.
+const escapeLike = (s) =>
+  String(s ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
+
 // --- TELÉFONOS (WhatsApp) ---
 // Normaliza a dígitos con código de país: Cuba (8 dígitos) -> "53"+n,
 // EEUU (10 dígitos) -> "1"+n; si ya trae el código, se deja tal cual.
@@ -307,18 +316,40 @@ const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Token requerido" });
-  jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }, (err, user) => {
-    if (err) return res.status(403).json({ error: "Token inválido" });
-    // Los tokens de vendedor del esquema viejo llevaban id = id de la
-    // tienda. El esquema nuevo usa id = id del usuario: esos tokens
-    // ya no valen y hay que volver a entrar.
-    if (user.role === "vendor" && user.v !== 2)
-      return res
-        .status(401)
-        .json({ error: "Sesión anterior: vuelve a entrar" });
-    req.user = user;
-    next();
-  });
+  jwt.verify(
+    token,
+    JWT_SECRET,
+    { algorithms: ["HS256"] },
+    async (err, user) => {
+      if (err) return res.status(403).json({ error: "Token inválido" });
+      // Los tokens de vendedor del esquema viejo llevaban id = id de la
+      // tienda. El esquema nuevo usa id = id del usuario: esos tokens
+      // ya no valen y hay que volver a entrar.
+      if (user.role === "vendor" && user.v !== 2)
+        return res
+          .status(401)
+          .json({ error: "Sesión anterior: vuelve a entrar" });
+      // La suspensión se revisa en CADA petición, no solo en el login:
+      // un vendedor suspendido con un token vigente no puede seguir
+      // operando hasta que el token caduque (máx. 24 h).
+      if (user.role === "vendor") {
+        try {
+          const r = await pool.query(
+            "SELECT is_suspended FROM users WHERE id = $1",
+            [user.id],
+          );
+          if (r.rows.length === 0)
+            return res.status(403).json({ error: "Token inválido" });
+          if (r.rows[0].is_suspended)
+            return res.status(403).json({ error: "Cuenta suspendida." });
+        } catch (e) {
+          return next(e);
+        }
+      }
+      req.user = user;
+      next();
+    },
+  );
 };
 
 // Límite de intentos en los endpoints de autenticación (anti fuerza bruta)
@@ -353,6 +384,15 @@ const recordLoginFailure = (key) => {
   }
 };
 const clearLoginFailures = (key) => loginFailures.delete(key);
+
+// Limpieza periódica: las entradas de cuentas que fallaron y nunca
+// volvieron a entrar se quedarían para siempre en memoria.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, rec] of loginFailures) {
+    if (now - rec.firstAt > LOGIN_WINDOW_MS) loginFailures.delete(key);
+  }
+}, LOGIN_WINDOW_MS);
 
 // --- CONSULTAS COMPARTIDAS ---
 // Una tienda es visible en el mercado solo si es pública, no está
@@ -446,14 +486,14 @@ const listPublicProducts = async ({ provinceId = null, municipalityId = null, li
     where.push(`s.municipality_id = $${params.length}`);
   }
   if (q) {
-    params.push(q);
+    params.push(escapeLike(q));
     const i = params.length;
     where.push(
       `(p.name ILIKE '%' || $${i} || '%' OR p.description ILIKE '%' || $${i} || '%' OR s.name ILIKE '%' || $${i} || '%' OR p.category ILIKE '%' || $${i} || '%')`,
     );
   }
   if (category) {
-    params.push(String(category).trim());
+    params.push(escapeLike(String(category).trim()));
     where.push(`btrim(p.category) ILIKE $${params.length}`);
   }
   if (minCup !== null && minCup !== undefined) {
@@ -568,16 +608,29 @@ app.get("/api/public/config", async (req, res, next) => {
 });
 
 // --- TASAS DE CAMBIO (mercado informal, según elTOQUE) ---
-// La tasa la actualiza el admin desde su panel. No se lee directo de
-// elTOQUE: su API oficial exige registro + clave, y el scraping lo
-// desaconseja elTOQUE y lo bloquea Cloudflare. Si la tabla aún no
-// existe, se devuelve lista vacía y el banner no se muestra.
+// La tasa se actualiza sola desde la API oficial de elTOQUE (cada 60 min
+// + al arrancar, ver refreshRatesFromElToque) y el panel admin sigue
+// valiendo para corregirla a mano. Si la tabla aún no existe, se
+// devuelve lista vacía y el banner no se muestra.
 app.get("/api/public/rates", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT currency, rate_cup, source, updated_at FROM exchange_rates
        ORDER BY CASE currency WHEN 'USD' THEN 0 WHEN 'EUR' THEN 1 WHEN 'MLC' THEN 2 WHEN 'CAD' THEN 3 WHEN 'MXN' THEN 4 WHEN 'ZELLE' THEN 5 WHEN 'CLA' THEN 6 ELSE 7 END`,
     );
+    // Refresco perezoso: en el plan gratis el proceso se duerme y el
+    // setInterval se pausa, así que si los datos tienen más de 60 min
+    // se actualizan en segundo plano y la próxima lectura ya los trae
+    // frescos. Se responde con los datos guardados, sin esperar.
+    const newest = result.rows.reduce(
+      (m, r) => Math.max(m, new Date(r.updated_at).getTime() || 0),
+      0,
+    );
+    if (
+      result.rows.length === 0 ||
+      Date.now() - newest > 60 * 60 * 1000
+    )
+      maybeRefreshRates();
     res.json({ rates: result.rows });
   } catch (err) {
     res.json({ rates: [] });
@@ -643,7 +696,10 @@ app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
 const ELTOQUE_API_URL = "https://tasas.eltoque.com/v1/trmi";
 const ELTOQUE_API_KEY = process.env.ELTOQUE_API_KEY || "";
 // Origen registrado en elTOQUE para esta clave (la API lo puede validar).
-const ELTOQUE_ORIGIN = "https://mercado-cuba.pages.dev";
+// Cambiarlo aquí exige avisar a elTOQUE; por eso vive en variable de
+// entorno, con el valor registrado como valor por defecto.
+const ELTOQUE_ORIGIN =
+  process.env.ELTOQUE_ORIGIN || "https://mercado-cuba.pages.dev";
 const ELTOQUE_MAP = {
   USD: "USD",
   ECU: "EUR",
@@ -721,6 +777,17 @@ async function refreshRatesFromElToque() {
     return { ok: false, reason: err.message };
   }
 }
+
+// Candado del refresco perezoso: una sola actualización en vuelo.
+// Sin esto, varias lecturas con datos viejos lanzarían una petición
+// a elTOQUE cada una y gastarían el límite de la API.
+let ratesRefreshPromise = null;
+const maybeRefreshRates = () => {
+  if (ratesRefreshPromise) return;
+  ratesRefreshPromise = refreshRatesFromElToque().finally(() => {
+    ratesRefreshPromise = null;
+  });
+};
 
 // Forzar la actualización desde el panel admin (superadmin). Sirve para
 // comprobar que la clave funciona sin esperar a la hora programada.
@@ -992,6 +1059,11 @@ app.post("/api/register", authLimiter, async (req, res) => {
   const { name, whatsapp, ownerName, code, password } = req.body;
   if (!name || !String(name).trim())
     return res.status(400).json({ error: "El nombre de la tienda es obligatorio" });
+  // Un nombre solo con símbolos o emojis genera un slug vacío (o "-").
+  if (!/[a-z0-9]/.test(createSlug(name)))
+    return res.status(400).json({
+      error: "El nombre debe incluir al menos una letra o un número",
+    });
   if (!whatsapp || !String(whatsapp).trim())
     return res.status(400).json({ error: "El número de WhatsApp es obligatorio" });
   const normalizedWhatsapp = normalizePhone(whatsapp);
@@ -1126,7 +1198,7 @@ app.post("/api/register", authLimiter, async (req, res) => {
         error: "Ese WhatsApp ya tiene una cuenta. Entra con tu contraseña.",
       });
     console.error(err);
-    return res.status(400).json({ error: "No se pudo crear la tienda" });
+    return res.status(500).json({ error: "No se pudo crear la tienda" });
   } finally {
     client.release();
   }
@@ -1860,7 +1932,7 @@ app.get("/api/admin/audit", authenticateToken, async (req, res, next) => {
       where.push(`a.actor_type = $${params.length}`);
     }
     if (q) {
-      params.push(q);
+      params.push(escapeLike(q));
       const i = params.length;
       where.push(
         `(a.action ILIKE '%' || $${i} || '%' OR a.target_type ILIKE '%' || $${i} || '%' OR COALESCE(u.owner_name, '') ILIKE '%' || $${i} || '%' OR COALESCE(u.whatsapp, '') ILIKE '%' || $${i} || '%' OR a.details::text ILIKE '%' || $${i} || '%')`,
@@ -2254,7 +2326,7 @@ app.get("/api/admin/products/search", authenticateToken, async (req, res, next) 
        FROM products p JOIN stores s ON s.id = p.store_id
        WHERE p.name ILIKE '%' || $1 || '%' OR s.name ILIKE '%' || $1 || '%'
        ORDER BY p.created_at DESC LIMIT $2`,
-      [q, limit],
+      [escapeLike(q), limit],
     );
     res.json({ products: result.rows });
   } catch (err) {
