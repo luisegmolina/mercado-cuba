@@ -634,11 +634,12 @@ app.put("/api/admin/rates", authenticateToken, async (req, res, next) => {
 // --- ACTUALIZACIÓN AUTOMÁTICA DE TASAS (API oficial de elTOQUE) ---
 // La clave vive solo como variable de entorno ELTOQUE_API_KEY (Render);
 // sin clave, no hace nada y las tasas manuales del panel admin siguen
-// valiendo. Cada 60 min pide la TRMI más reciente (ventana móvil de 48 h,
+// valiendo. Cada 60 min pide la TRMI más reciente (ventana móvil de 24 h,
 // que es lo que exige la API) y actualiza las monedas que la API trae
 // (USD, EUR vía ECU, MLC; CAD/MXN/ZELLE/CLA solo si vienen). Si la API
 // falla o no trae una moneda, se conserva el valor guardado. No modifica
 // los datos: solo copia la mediana publicada, con fuente 'elTOQUE'.
+// La API exige un intervalo MENOR de 24 h (48 h da HTTP 400).
 const ELTOQUE_API_URL = "https://tasas.eltoque.com/v1/trmi";
 const ELTOQUE_API_KEY = process.env.ELTOQUE_API_KEY || "";
 // Origen registrado en elTOQUE para esta clave (la API lo puede validar).
@@ -655,10 +656,10 @@ const ELTOQUE_MAP = {
 
 function eltoqueRange() {
   // "YYYY-MM-DD HH:MM:SS" en UTC; la API devuelve la tasa más reciente
-  // dentro de la ventana.
+  // dentro de la ventana. Ventana móvil de 24 h hasta ahora.
   const fmt = (d) => d.toISOString().slice(0, 19).replace("T", " ");
   const to = new Date();
-  const from = new Date(to.getTime() - 48 * 60 * 60 * 1000);
+  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
   return { from: fmt(from), to: fmt(to) };
 }
 
