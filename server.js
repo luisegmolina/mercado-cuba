@@ -667,6 +667,7 @@ async function refreshRatesFromElToque() {
     console.warn("[tasas] elTOQUE: falta ELTOQUE_API_KEY");
     return { ok: false, reason: "sin clave" };
   }
+  console.log("[tasas] actualizando desde elTOQUE...");
   try {
     const { from, to } = eltoqueRange();
     const url = `${ELTOQUE_API_URL}?date_from=${encodeURIComponent(from)}&date_to=${encodeURIComponent(to)}`;
@@ -677,11 +678,20 @@ async function refreshRatesFromElToque() {
       },
       signal: AbortSignal.timeout(20000),
     });
-    if (!res.ok) return { ok: false, reason: `HTTP ${res.status}` };
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.warn(
+        `[tasas] elTOQUE HTTP ${res.status}: ${body.slice(0, 200)}`,
+      );
+      return { ok: false, reason: `HTTP ${res.status}` };
+    }
     const data = await res.json();
     const tasas =
       data && data.tasas && typeof data.tasas === "object" ? data.tasas : null;
-    if (!tasas) return { ok: false, reason: "sin tasas" };
+    if (!tasas) {
+      console.warn("[tasas] elTOQUE: respuesta sin tasas");
+      return { ok: false, reason: "sin tasas" };
+    }
     const clean = [];
     for (const [code, value] of Object.entries(tasas)) {
       const currency = ELTOQUE_MAP[String(code).toUpperCase()];
@@ -689,8 +699,10 @@ async function refreshRatesFromElToque() {
       if (!currency || !Number.isFinite(rate) || rate <= 0) continue;
       clean.push({ currency, rate_cup: rate });
     }
-    if (clean.length === 0)
+    if (clean.length === 0) {
+      console.warn("[tasas] elTOQUE: sin monedas válidas");
       return { ok: false, reason: "sin monedas válidas" };
+    }
     for (const r of clean) {
       await pool.query(
         `INSERT INTO exchange_rates (currency, rate_cup, source, updated_at)
