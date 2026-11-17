@@ -4,13 +4,12 @@
 --
 -- RECONSTRUIDO a partir de server.js y de las migraciones del repo
 -- (NO de un pg_dump de Neon): si algún detalle difiere de producción,
--- manda lo que diga Neon. En concreto, sin verificar en Neon:
---   - los índices trigram (pg_trgm) que el comentario de
---     listPublicProducts da por sentados: ninguna migración del repo
---     los crea, así que aquí NO se incluyen;
---   - los valores exactos del CHECK de product_images y del
---     status de store_licenses (solo 'active' está confirmado en
---     las consultas).
+-- manda lo que diga Neon. Verificado en Neon el 2026-11-17: la tabla
+-- stores tiene exactamente las columnas de aquí (sin password_hash ni
+-- is_public_market) y existen los índices trigram de abajo. Sin
+-- verificar: los valores exactos del CHECK de product_images y del
+-- status de store_licenses (solo 'active' está confirmado en
+-- las consultas).
 -- Las tablas admin_config y activation_codes son del esquema viejo y
 -- server.js ya no las usa: no están aquí. Las tablas *_old tampoco.
 -- ==================================================================
@@ -177,6 +176,13 @@ CREATE INDEX IF NOT EXISTS idx_products_created ON products(created_at);
 CREATE INDEX IF NOT EXISTS idx_products_featured
     ON products(featured_until) WHERE featured_until IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id);
+
+-- Búsqueda por texto: índices trigram (pg_trgm), confirmados en Neon.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_stores_name_trgm
+    ON stores USING gin (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm
+    ON products USING gin (name gin_trgm_ops);
 
 -- Provincias de Cuba (16)
 INSERT INTO provinces (name) VALUES
